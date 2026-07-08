@@ -1,0 +1,21 @@
+{
+  "name": "sba-extension-environments",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "vue": "3.5.32"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.6",
+    "vite": "7.3.2"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not ie <= 8"
+  ]
+}

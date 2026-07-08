@@ -1,0 +1,23 @@
+name: build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      # The frontend-maven-plugin downloads its own Node/npm, so no separate Node setup is needed.
+      # The store-redis integration test is skipped unless SBA_REDIS_TEST_URI is set.
+      - name: Build
+        run: ./mvnw -B --no-transfer-progress verify

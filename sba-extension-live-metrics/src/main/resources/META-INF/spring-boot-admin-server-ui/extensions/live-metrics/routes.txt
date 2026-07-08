@@ -1,0 +1,2 @@
+/instances/*/live-metrics
+/instances/*/live-metrics/**

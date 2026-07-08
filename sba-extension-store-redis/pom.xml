@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.alexmond</groupId>
+        <artifactId>spring-boot-admin-extensions</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sba-extension-store-redis</artifactId>
+    <name>sba-extension-store-redis</name>
+    <description>Resilient Redis-backed InstanceEventStore for Spring Boot Admin. The in-memory log
+        is authoritative (extends SBA's InMemoryEventStore); Redis is a fully reactive (Lettuce, no
+        blocking calls) write-behind mirror for durability. A Redis outage never blanks the registry
+        (reads stay in-memory) and never fails a write — it's surfaced as a non-fatal DEGRADED health
+        status instead. Hydrates from Redis on startup. Connection uses the standard spring.data.redis.*
+        config. Opt-in via sba.eventstore.type=redis.</description>
+
+    <dependencies>
+        <!-- SBA server SPI: InstanceEventStore, InstanceEventPublisher, InstanceEvent, …
+             Provided — the SBA server module already brings spring-boot-admin-server at runtime. -->
+        <dependency>
+            <groupId>de.codecentric</groupId>
+            <artifactId>spring-boot-admin-server</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Reactive Redis (Lettuce). Compile scope: the admin has no Redis client otherwise, so
+             this bundles Lettuce + Spring Data Redis into the admin. Boot auto-configures a
+             ReactiveStringRedisTemplate from spring.data.redis.* (works in a servlet app too). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Actuator: the custom DEGRADED health indicator (ReactiveHealthIndicator/Health/Status).
+             Provided — the admin already ships actuator; guarded by @ConditionalOnClass. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Integration test against a real Redis (gated on SBA_REDIS_TEST_URI env). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

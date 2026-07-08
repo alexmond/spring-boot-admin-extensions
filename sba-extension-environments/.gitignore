@@ -1,0 +1,3 @@
+# Frontend build artifacts — never commit these.
+node_modules/
+dist/
