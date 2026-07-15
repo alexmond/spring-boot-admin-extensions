@@ -44,15 +44,19 @@ public class ReactiveRedisEventStoreAutoConfiguration {
 	@ConditionalOnMissingBean(InstanceEventStore.class)
 	public ReactiveRedisEventStore instanceEventStore(ReactiveStringRedisTemplate redis,
 			RedisEventStoreProperties props) {
-		return new ReactiveRedisEventStore(redis, props.getKeyPrefix());
+		return new ReactiveRedisEventStore(redis, props.keyPrefix(), props.timeout(), props.eventTtl(),
+				props.hydrateDiscovered());
 	}
 
 	/**
 	 * Replay the persisted event log into memory once the app is ready (non-blocking, best-effort).
-	 * Kept off the startup path so a slow/down Redis can never delay readiness.
+	 * Kept off the startup path so a slow/down Redis can never delay readiness. Disable with
+	 * {@code sba.eventstore.redis.hydrate-on-startup=false}.
 	 */
 	@Bean
 	@ConditionalOnBean(ReactiveRedisEventStore.class)
+	@ConditionalOnProperty(prefix = "sba.eventstore.redis", name = "hydrate-on-startup", havingValue = "true",
+			matchIfMissing = true)
 	public ApplicationListener<ApplicationReadyEvent> redisEventStoreHydrator(ReactiveRedisEventStore store) {
 		return (event) -> store.hydrate()
 			.subscribe((n) -> log.info("SBA event store: hydrated {} instance(s) from Redis", n),

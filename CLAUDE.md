@@ -44,9 +44,9 @@ The central design invariant: **a Redis outage must never blank the SBA registry
 
 - `ReactiveRedisEventStore extends InMemoryEventStore`. **In-memory is authoritative.** Reads (`find`/`findAll`) and the optimistic lock are inherited and served from memory, so they always work. `append` commits to memory first (`super.append`), then fires a **non-blocking, fire-and-forget Lettuce write-behind** mirror to Redis as a `doOnSuccess` side effect; mirror failures are swallowed (logged + counted), never propagated.
 - **Never make a blocking Redis call on a reactor thread** — it deadlocks SBA. Everything uses `ReactiveStringRedisTemplate` with a 3s timeout.
-- **Startup hydration**: `hydrate()` replays the persisted log back into memory via `super.append` (no re-mirroring), tolerating per-instance `OptimisticLockingException` (live discovery wins). It's triggered off `ApplicationReadyEvent` (async) so a slow/down Redis can't delay readiness.
+- **Startup hydration**: `hydrate()` replays the persisted log back into memory via `super.append` (no re-mirroring), tolerating per-instance `OptimisticLockingException` (live discovery wins). It's triggered off `ApplicationReadyEvent` (async) so a slow/down Redis can't delay readiness. By default it **skips discovery-sourced instances** (registration `source="discovery"`): a `DiscoveryClient` re-registers the live ones and its `removeStaleInstances()` prunes the rest, so replaying them would only resurrect dead instances (e.g. old k8s pod IPs) as ghosts. Toggle with `hydrate-discovered`; disable the whole step with `hydrate-on-startup=false`.
 - **Health, not liveness**: `EventStorePersistenceHealthIndicator` reports a **custom `DEGRADED` status** (not `DOWN`) when Redis is unreachable — HTTP 200, deliberately kept out of readiness/liveness groups so an outage is visible in `/actuator/health` and the SBA console without restarting the pod. This is the fix for the old blind spot where disabling the redis health check hid a silently-emptied registry.
-- **Storage**: one Redis sorted set per instance `<prefix>:events:<instanceId>` scored by event version, member = Base64 of the JDK-serialized `InstanceEvent`; plus a set `<prefix>:instances`. Prefix default `sba:eventstore` (`RedisEventStoreProperties`).
+- **Storage**: one Redis sorted set per instance `<prefix>:events:<instanceId>` scored by event version, member = Base64 of the JDK-serialized `InstanceEvent`; plus a set `<prefix>:instances`. Prefix default `sba:eventstore` (`RedisEventStoreProperties`). Each event key gets a **refreshed TTL** (`event-ttl`, default 24h) on every write, so an instance that stops being written self-evicts and the mirror doesn't accumulate stale ids; reads lazily `SREM` any set member whose key has already expired.
 - **Security**: events are JDK-serialized (matching SBA's `HazelcastEventStore`). JDK deserialization of untrusted bytes is an RCE vector — the target Redis **must** be authenticated and network-restricted to the admin. Never point this at a shared/open Redis.
 - **Activation** (`ReactiveRedisEventStoreAutoConfiguration`): `@ConditionalOnProperty(sba.eventstore.type=redis)` + `@ConditionalOnMissingBean(InstanceEventStore)`, ordered after `DataRedisReactiveAutoConfiguration` and before `AdminServerAutoConfiguration`. Registered in `META-INF/spring/…AutoConfiguration.imports`. Unset `sba.eventstore.type` → SBA keeps its default in-memory store, so the jar is safe to have on the classpath without turning it on.
 
@@ -60,5 +60,19 @@ sba:
   eventstore:
     type: redis                       # opt-in; anything else = SBA default in-memory
     redis:
-      key-prefix: sba:eventstore      # optional
+      key-prefix: sba:eventstore      # Redis key namespace
+      timeout: 3s                     # per-command Redis timeout (mirror / hydrate / ping)
+      event-ttl: 24h                  # TTL per instance key, refreshed on write; stale ids self-evict
+                                      #   (0/negative = never expire). Stops ghost buildup for churny
+                                      #   fleets (k8s pods re-registering under new ids, autoscaling).
+      hydrate-on-startup: true        # replay the persisted log into memory on startup
+      hydrate-discovered: false       # if false (default), startup hydration SKIPS discovery-sourced
+                                      #   instances — a DiscoveryClient (k8s/Eureka/Consul/…) re-registers
+                                      #   the live ones and prunes the rest, so replaying them would only
+                                      #   resurrect dead instances as ghosts. Client self-registrations
+                                      #   are always hydrated. Set true to warm the registry pre-discovery.
 ```
+
+All keys are optional; the values shown are the defaults. Full descriptions ship in
+`spring-configuration-metadata.json` (generated from `RedisEventStoreProperties`' `@param` javadoc via
+`spring-boot-configuration-processor`), so IDEs autocomplete them.

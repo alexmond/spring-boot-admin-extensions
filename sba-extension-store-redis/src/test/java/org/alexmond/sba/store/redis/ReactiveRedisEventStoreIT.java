@@ -1,5 +1,6 @@
 package org.alexmond.sba.store.redis;
 
+import java.time.Duration;
 import java.util.List;
 
 import io.lettuce.core.RedisURI;
@@ -17,8 +18,10 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
 
 import de.codecentric.boot.admin.server.domain.events.InstanceEvent;
+import de.codecentric.boot.admin.server.domain.events.InstanceRegisteredEvent;
 import de.codecentric.boot.admin.server.domain.events.InstanceStatusChangedEvent;
 import de.codecentric.boot.admin.server.domain.values.InstanceId;
+import de.codecentric.boot.admin.server.domain.values.Registration;
 import de.codecentric.boot.admin.server.domain.values.StatusInfo;
 import de.codecentric.boot.admin.server.eventstore.OptimisticLockingException;
 
@@ -125,6 +128,41 @@ class ReactiveRedisEventStoreIT {
 	void ping_reports_reachable_against_a_live_redis() {
 		assertThat(store.ping().block()).isTrue();
 		assertThat(store.persistenceStatus().reachable()).isTrue();
+	}
+
+	@Test
+	void hydrate_skips_discovery_sourced_instances_by_default() throws InterruptedException {
+		// Discovery restores its own instances on startup (and prunes dead ones), so hydrating them
+		// would just resurrect ghosts (e.g. a k8s pod that restarted under a new id). Only non-discovery
+		// (client self-registered) instances should be hydrated from Redis by default.
+		ReactiveRedisEventStore writer = new ReactiveRedisEventStore(redis, PREFIX + ":src");
+		InstanceId disc = InstanceId.of("disc1");
+		writer.append(List.of(new InstanceRegisteredEvent(disc, 0,
+				Registration.create("app-disc", "http://app-disc/health").source("discovery").build()))).block();
+		InstanceId client = InstanceId.of("client1");
+		writer.append(List.of(new InstanceRegisteredEvent(client, 0,
+				Registration.create("app-client", "http://app-client/health").source("http-api").build()))).block();
+		awaitMirror(writer, 2);
+
+		ReactiveRedisEventStore restarted = new ReactiveRedisEventStore(redis, PREFIX + ":src");
+		assertThat(restarted.hydrate().block()).isEqualTo(1); // only the client-sourced instance
+		assertThat(restarted.find(disc).collectList().block()).isEmpty(); // discovery-sourced skipped
+		assertThat(restarted.find(client).collectList().block()).hasSize(1); // client-sourced hydrated
+
+		// With hydrateDiscovered=true, the discovery-sourced one is restored too.
+		ReactiveRedisEventStore restartedAll = new ReactiveRedisEventStore(redis, PREFIX + ":src",
+				Duration.ofSeconds(3), Duration.ofHours(24), true);
+		assertThat(restartedAll.hydrate().block()).isEqualTo(2);
+	}
+
+	@Test
+	void write_sets_a_ttl_on_the_event_key() throws InterruptedException {
+		ReactiveRedisEventStore w = new ReactiveRedisEventStore(redis, PREFIX + ":ttl", Duration.ofSeconds(3),
+				Duration.ofMinutes(30), false);
+		w.append(List.of(status("t1", 0, "UP"))).block();
+		awaitMirror(w, 1);
+		Duration ttl = redis.getExpire(PREFIX + ":ttl:events:t1").block();
+		assertThat(ttl).isBetween(Duration.ofMinutes(25), Duration.ofMinutes(30));
 	}
 
 	@Test

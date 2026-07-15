@@ -23,7 +23,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import de.codecentric.boot.admin.server.domain.events.InstanceEvent;
+import de.codecentric.boot.admin.server.domain.events.InstanceRegisteredEvent;
 import de.codecentric.boot.admin.server.domain.values.InstanceId;
+import de.codecentric.boot.admin.server.domain.values.Registration;
 import de.codecentric.boot.admin.server.eventstore.InMemoryEventStore;
 import de.codecentric.boot.admin.server.eventstore.OptimisticLockingException;
 
@@ -45,13 +47,17 @@ import static java.util.Comparator.comparingLong;
  *       fails, the append still succeeds; the failure is recorded (see {@link #persistenceStatus()})
  *       and surfaced by the {@code eventStorePersistence} health indicator — it never propagates.</li>
  *   <li><b>Startup</b> {@link #hydrate()} replays the persisted log back into memory (best-effort),
- *       so the registry survives an admin restart. Live discovery wins any version conflict.</li>
+ *       so the registry survives an admin restart. By default it <em>skips discovery-sourced</em>
+ *       instances (SBA's DiscoveryClient re-registers the live ones and prunes the rest), so it never
+ *       resurrects dead instances as ghosts; live discovery wins any version conflict.</li>
  * </ul>
  *
  * <p>Storage: one sorted set per instance, {@code <prefix>:events:<instanceId>}, scored by event
  * version, member = Base64 of the JDK-serialized {@link InstanceEvent}; plus a set
  * {@code <prefix>:instances} of known instance ids. The optimistic lock lives in the in-memory
- * store now, so the mirror is a plain idempotent {@code ZADD} (no Lua needed).
+ * store now, so the mirror is a plain idempotent {@code ZADD} (no Lua needed). Each event key carries
+ * a refreshed TTL (see {@code eventTtl}) so an instance that stops being written self-evicts — the
+ * mirror doesn't accumulate stale ids across restarts/re-registrations.
  *
  * <p><strong>Security:</strong> events are JDK-serialized (like SBA's {@code HazelcastEventStore}).
  * JDK deserialization of untrusted bytes is an RCE vector, so the Redis MUST be trusted:
@@ -62,13 +68,20 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 
 	private static final Logger log = LoggerFactory.getLogger(ReactiveRedisEventStore.class);
 
-	private static final Duration REDIS_TIMEOUT = Duration.ofSeconds(3);
+	/** SBA's registration source for instances found via a DiscoveryClient (InstanceDiscoveryListener). */
+	private static final String DISCOVERY_SOURCE = "discovery";
 
 	private final ReactiveStringRedisTemplate redis;
 
 	private final String instancesKey;
 
 	private final String eventKeyPrefix;
+
+	private final Duration timeout;
+
+	private final Duration eventTtl;
+
+	private final boolean hydrateDiscovered;
 
 	// --- persistence status (read by the health indicator) ---
 	private volatile boolean redisReachable;
@@ -84,10 +97,18 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 	private final AtomicLong mirrorFailures = new AtomicLong();
 
 	public ReactiveRedisEventStore(ReactiveStringRedisTemplate redis, String keyPrefix) {
+		this(redis, keyPrefix, Duration.ofSeconds(3), Duration.ofHours(24), false);
+	}
+
+	public ReactiveRedisEventStore(ReactiveStringRedisTemplate redis, String keyPrefix, Duration timeout,
+			Duration eventTtl, boolean hydrateDiscovered) {
 		super();
 		this.redis = redis;
 		this.instancesKey = keyPrefix + ":instances";
 		this.eventKeyPrefix = keyPrefix + ":events:";
+		this.timeout = timeout;
+		this.eventTtl = eventTtl;
+		this.hydrateDiscovered = hydrateDiscovered;
 	}
 
 	@Override
@@ -113,14 +134,23 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 
 	private Mono<Void> redisWrite(List<InstanceEvent> events) {
 		InstanceId id = events.get(0).getInstance();
+		String eventKey = this.eventKeyPrefix + id.getValue();
 		Set<ZSetOperations.TypedTuple<String>> tuples = events.stream()
 			.map((e) -> ZSetOperations.TypedTuple.of(serialize(e), (double) e.getVersion()))
 			.collect(Collectors.toSet());
+		// ZADD, then (re)set the TTL so a live instance's key stays fresh while a dead one (no more
+		// writes — e.g. an instance re-registered under a new id) self-evicts. SADD tracks known ids.
+		Mono<Boolean> refreshTtl = ttlEnabled() ? this.redis.expire(eventKey, this.eventTtl) : Mono.just(true);
 		return this.redis.opsForZSet()
-			.addAll(this.eventKeyPrefix + id.getValue(), tuples)
+			.addAll(eventKey, tuples)
+			.then(refreshTtl)
 			.then(this.redis.opsForSet().add(this.instancesKey, id.getValue()))
-			.timeout(REDIS_TIMEOUT)
+			.timeout(this.timeout)
 			.then();
+	}
+
+	private boolean ttlEnabled() {
+		return this.eventTtl != null && !this.eventTtl.isZero() && !this.eventTtl.isNegative();
 	}
 
 	/**
@@ -136,6 +166,14 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 				List<InstanceEvent> ordered = events.stream()
 					.sorted(comparingLong(InstanceEvent::getVersion))
 					.toList();
+				// Don't resurrect discovery-sourced instances (unless explicitly enabled): SBA's
+				// InstanceDiscoveryListener re-registers the currently-live ones on startup and its
+				// removeStaleInstances() deregisters the rest, so replaying them would just show dead
+				// instances (e.g. old k8s pod IPs) as ghosts until the next discovery scan. Instances
+				// discovery will NOT restore (client self-registrations) are always hydrated.
+				if (!this.hydrateDiscovered && isDiscoverySourced(ordered)) {
+					return Mono.just(0);
+				}
 				return super.append(ordered)
 					.thenReturn(1)
 					.onErrorResume(OptimisticLockingException.class, (ex) -> Mono.just(0));
@@ -154,14 +192,27 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 			.members(this.instancesKey)
 			.flatMap((id) -> this.redis.opsForZSet()
 				.range(this.eventKeyPrefix + id, Range.closed(0L, -1L))
-				.map(this::deserialize))
-			.timeout(REDIS_TIMEOUT);
+				.map(this::deserialize)
+				// ZSET gone (TTL-expired) but the id still lingers in the set → prune the stale member.
+				.switchIfEmpty(this.redis.opsForSet().remove(this.instancesKey, id).thenMany(Flux.empty())))
+			.timeout(this.timeout);
+	}
+
+	/** True if the latest registration in the log came from a DiscoveryClient (source="discovery"). */
+	private static boolean isDiscoverySourced(List<InstanceEvent> events) {
+		for (int i = events.size() - 1; i >= 0; i--) {
+			if (events.get(i) instanceof InstanceRegisteredEvent registered) {
+				Registration registration = registered.getRegistration();
+				return registration != null && DISCOVERY_SOURCE.equals(registration.getSource());
+			}
+		}
+		return false;
 	}
 
 	/** Lightweight reachability probe for the health indicator (updates the tracked status). */
 	public Mono<Boolean> ping() {
 		return this.redis.hasKey(this.instancesKey)
-			.timeout(REDIS_TIMEOUT)
+			.timeout(this.timeout)
 			.map((exists) -> true)
 			.doOnNext((ok) -> markReachable(true, null, null))
 			.onErrorResume((ex) -> {

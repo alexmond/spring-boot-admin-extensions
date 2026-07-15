@@ -45,13 +45,21 @@ spring:
 
 sba:
   eventstore:
-    type: redis                 # activates the Redis-backed store (default is SBA's in-memory)
-    redis:
-      key-prefix: sba:eventstore # optional; keys are <prefix>:events:<id>, <prefix>:instances
+    type: redis                  # activates the Redis-backed store (default is SBA's in-memory)
+    redis:                       # all optional; values shown are the defaults
+      key-prefix: sba:eventstore # keys are <prefix>:events:<id>, <prefix>:instances
+      timeout: 3s                # per-command Redis timeout (mirror / hydrate / ping)
+      event-ttl: 24h             # TTL per instance key, refreshed on write; stale ids self-evict
+                                 #   (0/negative = never expire) — stops ghost buildup when instances
+                                 #   re-register under new ids (k8s pod restarts, autoscaling)
+      hydrate-on-startup: true   # replay the persisted log into memory on startup
+      hydrate-discovered: false  # skip discovery-sourced instances on hydrate (a DiscoveryClient
+                                 #   restores the live ones itself); true = restore everything
 ```
 
 With `sba.eventstore.type` unset (or any other value) SBA keeps its default in-memory store, so the
-dependency is safe to have on the classpath without turning it on.
+dependency is safe to have on the classpath without turning it on. Every `redis.*` key is optional and
+documented in the generated `spring-configuration-metadata.json` (IDE autocomplete).
 
 ## Build
 
