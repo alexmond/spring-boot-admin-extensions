@@ -261,7 +261,14 @@ export default {
     const q = ref("");
     const lastUpdate = ref(new Date().toLocaleString());
 
-    const envOf = (app) => app.instances?.[0]?.tags?.environment || "untagged";
+    // An app's environment comes from its instances' info.tags.environment (the server flattens
+    // info.tags.* onto each instance's `tags` map). Offline / just-registered / stale-discovery
+    // ("ghost") instances haven't reported their /actuator/info yet, so they carry no tags — pick
+    // the first instance that actually HAS an environment rather than instances[0]. Otherwise an
+    // app whose first instance is an untagged ghost falls into "untagged" even though its live
+    // instances are tagged (which is exactly what happened with builder-runner's stale IP entry).
+    const envOf = (app) =>
+      app.instances?.find((i) => i.tags?.environment)?.tags.environment || "untagged";
     const allApps = computed(() => applications.value ?? applications ?? []);
     const allInstances = computed(() => allApps.value.flatMap((a) => a.instances));
     const all = computed(() => getStatusInfo(allInstances.value)); // hero reflects ALL, not the filter
