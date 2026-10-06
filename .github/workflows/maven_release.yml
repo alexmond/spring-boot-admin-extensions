@@ -54,10 +54,23 @@ jobs:
       - name: Set Release Version
         run: |
           ./mvnw versions:set -DnewVersion="$RELEASE_VERSION" -DgenerateBackupPoms=false --no-transfer-progress
-          # versions:set only touches the POMs. Keep the README install snippet in step.
-          sed -i -E "s#<version>[0-9][0-9.]*(-SNAPSHOT)?</version>#<version>$RELEASE_VERSION</version>#" README.md
+          # versions:set only touches the POMs. Keep the README install snippets in step —
+          # the root README and one per module.
+          sed -i -E "s#<version>[0-9][0-9.]*(-SNAPSHOT)?</version>#<version>$RELEASE_VERSION</version>#" README.md sba-extension-*/README.md
+
+      # Same Redis as build.yml, so the release is verified with the integration test too.
+      - name: Start Redis
+        run: |
+          docker run -d --name ci-redis -p 6379:6379 redis:7-alpine redis-server --requirepass ci-redis
+          for i in $(seq 1 30); do
+            docker exec ci-redis redis-cli -a ci-redis --no-auth-warning ping 2>/dev/null | grep -q PONG && exit 0
+            sleep 1
+          done
+          echo "Redis did not start" >&2; exit 1
 
       - name: Verify Build
+        env:
+          SBA_REDIS_TEST_URI: redis://:ci-redis@localhost:6379
         run: ./mvnw --batch-mode verify --no-transfer-progress
 
       - name: Commit and Tag Release
