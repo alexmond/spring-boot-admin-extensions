@@ -12,7 +12,7 @@ export default defineConfig({
     minify: false,
     outDir: "target/dist",
     lib: {
-      entry: path.resolve(__dirname, "src/index.js"),
+      entry: path.resolve(import.meta.dirname, "src/index.js"),
       name: "EnvironmentsUi",
       formats: ["umd"],
       fileName: () => "environments-ui.js",

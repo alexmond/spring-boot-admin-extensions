@@ -5,7 +5,7 @@ A small collection of extensions for [Spring Boot Admin](https://github.com/code
 add the ones you want to your SBA **server**'s classpath.
 
 > Not a flagship project — a handful of extensions extracted from a home setup because they're
-> generally useful. Built against **Spring Boot 4.0 / Spring Boot Admin 4.0**.
+> generally useful. Built against **Spring Boot 4.1 / Spring Boot Admin 4.1**.
 
 ## Modules
 
@@ -27,7 +27,7 @@ Add the module(s) to your Spring Boot Admin **server** application:
 <dependency>
     <groupId>org.alexmond</groupId>
     <artifactId>sba-extension-live-metrics</artifactId>
-    <version>0.1.0</version>
+    <version>4.1.1.1</version>
 </dependency>
 ```
 

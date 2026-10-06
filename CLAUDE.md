@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A multi-module Maven project of independent extensions for [Spring Boot Admin](https://github.com/codecentric/spring-boot-admin) (SBA). Each module is meant to be dropped onto an SBA **server**'s classpath on its own. Built against **Spring Boot 4.0 / SBA 4.0** (Java 21).
+A multi-module Maven project of independent extensions for [Spring Boot Admin](https://github.com/codecentric/spring-boot-admin) (SBA). Each module is meant to be dropped onto an SBA **server**'s classpath on its own. Built against **Spring Boot 4.1 / SBA 4.1** (Java 21).
 
 Three modules, two shapes:
 - `sba-extension-environments`, `sba-extension-live-metrics` — **UI extensions**. Vite/Vue 3 bundles shipped inside a resource jar; SBA serves them from the classpath, no wiring.
@@ -24,7 +24,7 @@ Three modules, two shapes:
 
 ## Versioning & branches
 
-Follows the machine-wide **Spring Boot extension** rule (see global CLAUDE.md): the project version tracks the Boot version it builds against (currently `0.1.0-SNAPSHOT` against Boot `4.0.7` / SBA `4.0.4`). `master`/`main` tracks the latest Boot minor; older Boot lines get their own named branches. This is the one project where the numeric-only release rule does **not** apply — match the Boot-aligned scheme.
+Follows the machine-wide **Spring Boot extension** rule (see global CLAUDE.md): the project version tracks the Boot version it builds against (currently `4.1.1.1-SNAPSHOT` against Boot `4.1.1` / SBA `4.1.3` — i.e. `<boot-version>.<n>`). `master`/`main` tracks the latest Boot minor; older Boot lines get their own named branches. This is the one project where the numeric-only release rule does **not** apply — match the Boot-aligned scheme.
 
 ## UI extension architecture (environments, live-metrics)
 

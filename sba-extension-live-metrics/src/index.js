@@ -6,10 +6,11 @@
 // each selected metric as a live, rolling line chart (like the CPU/Memory graphs). See
 // live-metrics.vue.
 import liveMetrics from "./live-metrics.vue";
+import { addView } from "./register-view";
 
 SBA.use({
   install({ viewRegistry, i18n }) {
-    viewRegistry.addView({
+    addView(viewRegistry, {
       name: "instances/live-metrics",
       parent: "instances",
       path: "live-metrics",

@@ -12,31 +12,31 @@
   <section>
     <!-- Subnav — matches the Applications view: stat pills + refresh + filter. -->
     <sba-sticky-subnav>
-      <div class="container mx-auto flex">
-        <!-- ApplicationStats: Applications + Instances counts (over all apps). -->
-        <div class="hidden md:flex mr-1 gap-1">
-          <sba-tag :label="t('applications.applications')" :value="appCount" />
-          <sba-tag :label="t('applications.instances')" :value="instanceCount" />
-        </div>
-        <sba-button
-          class="mr-1"
-          :title="t('applications.actions.refresh_applications')"
-          @click="refresh"
-        >
-          <font-awesome-icon icon="rotate-left" />
-        </sba-button>
-        <div class="flex-1">
-          <sba-input
-            v-model="q"
-            :placeholder="t('term.filter')"
-            name="filter"
-            type="search"
+      <div class="container mx-auto flex justify-between">
+        <div class="flex">
+          <!-- ApplicationStats: Applications + Instances counts (over all apps). -->
+          <div class="hidden md:flex mr-1 gap-1">
+            <sba-tag :label="t('applications.applications')" :value="appCount" />
+            <sba-tag :label="t('applications.instances')" :value="instanceCount" />
+          </div>
+          <sba-button
+            class="mr-1"
+            :title="t('applications.actions.refresh_applications')"
+            @click="refresh"
           >
-            <template #prepend>
-              <font-awesome-icon icon="filter" />
-            </template>
-          </sba-input>
+            <font-awesome-icon icon="rotate-left" />
+          </sba-button>
         </div>
+        <sba-input
+          v-model="q"
+          :placeholder="t('term.filter')"
+          name="filter"
+          type="search"
+        >
+          <template #prepend>
+            <font-awesome-icon icon="filter" />
+          </template>
+        </sba-input>
       </div>
     </sba-sticky-subnav>
 
@@ -49,42 +49,42 @@
             <font-awesome-icon icon="check-circle" class="text-green-500 text-6xl pr-4" />
             <div class="text-center">
               <h1 class="font-bold text-2xl" v-text="t('applications.all_up')" />
-              <p class="text-gray-400" v-text="lastUpdate" />
+              <p class="text-gray-400" v-text="`${t('applications.last_update')}: ${lastUpdate}`" />
             </div>
           </template>
           <template v-else-if="all.allDown">
             <font-awesome-icon icon="minus-circle" class="text-red-500 text-6xl pr-4" />
             <div class="text-center">
               <h1 class="font-bold text-2xl" v-text="t('applications.all_down')" />
-              <p class="text-gray-400" v-text="lastUpdate" />
+              <p class="text-gray-400" v-text="`${t('applications.last_update')}: ${lastUpdate}`" />
             </div>
           </template>
           <template v-else-if="all.allUnknown">
             <font-awesome-icon icon="question-circle" class="text-gray-300 text-6xl pr-4" />
             <div class="text-center">
               <h1 class="font-bold text-2xl" v-text="t('applications.all_unknown')" />
-              <p class="text-gray-400" v-text="lastUpdate" />
+              <p class="text-gray-400" v-text="`${t('applications.last_update')}: ${lastUpdate}`" />
             </div>
           </template>
           <template v-else-if="all.someDown">
             <font-awesome-icon icon="minus-circle" class="text-red-500 text-6xl pr-4" />
             <div class="text-center">
               <h1 class="font-bold text-2xl" v-text="t('applications.some_down')" />
-              <p class="text-gray-400" v-text="lastUpdate" />
+              <p class="text-gray-400" v-text="`${t('applications.last_update')}: ${lastUpdate}`" />
             </div>
           </template>
           <template v-else-if="all.someUnknown">
             <font-awesome-icon icon="question-circle" class="text-gray-300 text-6xl pr-4" />
             <div class="text-center">
               <h1 class="font-bold text-2xl" v-text="t('applications.some_unknown')" />
-              <p class="text-gray-400" v-text="lastUpdate" />
+              <p class="text-gray-400" v-text="`${t('applications.last_update')}: ${lastUpdate}`" />
             </div>
           </template>
           <template v-else>
             <font-awesome-icon icon="check-circle" class="text-green-500 text-6xl pr-4" />
             <div class="text-center">
               <h1 class="font-bold text-2xl" v-text="t('applications.all_up')" />
-              <p class="text-gray-400" v-text="lastUpdate" />
+              <p class="text-gray-400" v-text="`${t('applications.last_update')}: ${lastUpdate}`" />
             </div>
           </template>
         </template>
@@ -103,10 +103,11 @@
       @title-click="toggleEnv(env.name)"
     >
       <template #title>
-        <div class="items-center inline-flex flex-row min-w-116">
+        <div class="items-center inline-flex flex-row min-w-116 cursor-pointer">
           <font-awesome-icon
-            icon="chevron-down"
-            :class="{ '-rotate-90': !isEnvOpen(env.name), 'mr-2 transition-[transform]': true }"
+            icon="chevron-right"
+            class="mr-2 transition-transform"
+            :class="{ 'rotate-90': isEnvOpen(env.name) }"
           />
           <sba-status-badge class="mr-2" :status="env.status" />
           <span v-text="env.name" />
@@ -127,10 +128,11 @@
             @title-click="toggle(openApps, env.name + '/' + app.name)"
           >
             <template #title>
-              <div class="items-center inline-flex flex-row min-w-116">
+              <div class="items-center inline-flex flex-row min-w-116 cursor-pointer">
                 <font-awesome-icon
-                  icon="chevron-down"
-                  :class="{ '-rotate-90': !isAppOpen(env.name + '/' + app.name), 'mr-2 transition-[transform]': true }"
+                  icon="chevron-right"
+                  class="mr-2 transition-transform"
+                  :class="{ 'rotate-90': isAppOpen(env.name + '/' + app.name) }"
                 />
                 <sba-status-badge class="mr-2" :status="app.status || statusOf(app.instances)" />
                 <span v-text="app.name" />
@@ -148,13 +150,14 @@
                 <li
                   v-for="instance in app.instances"
                   :key="instance.id"
-                  class="flex p-2 pr-4 hover:bg-gray-100 gap-2 odd:bg-gray-50 items-center cursor-pointer"
+                  class="flex p-2 pr-4 hover:bg-gray-100 hover:cursor-pointer gap-2 odd:bg-gray-50 items-center"
                   @click="showDetails(instance)"
                 >
                   <div class="pt-1 md:w-16 text-center">
                     <sba-status :date="instance.statusTimestamp" :status="instance.statusInfo.status" />
                   </div>
                   <div class="flex-1">
+                    <div class="flex gap-2 items-center">
                     <section class="grid grid-cols-2 md:grid-cols-[26.5rem_1fr] items-center w-full">
                       <div class="flex" style="grid-area: 1 / 1 / 1 / 3">
                         <div
@@ -162,38 +165,56 @@
                           v-text="instance.registration.serviceUrl || instance.registration.healthUrl"
                         />
                         <div class="ml-1 flex gap-1 items-start" @click.stop>
-                          <sba-button
-                            v-if="instance.registration.serviceUrl"
-                            as="a"
-                            :href="instance.registration.serviceUrl"
-                            size="2xs"
-                            target="_blank"
-                          >
-                            <font-awesome-icon icon="home" size="xs" />
-                          </sba-button>
-                          <sba-button
-                            v-if="instance.registration.managementUrl"
-                            as="a"
-                            :href="instance.registration.managementUrl"
-                            size="2xs"
-                            target="_blank"
-                          >
-                            <font-awesome-icon icon="clipboard-list" size="xs" />
-                          </sba-button>
-                          <sba-button
-                            v-if="instance.registration.healthUrl"
-                            as="a"
-                            :href="instance.registration.healthUrl"
-                            size="2xs"
-                            target="_blank"
-                          >
-                            <font-awesome-icon icon="heart" size="xs" />
-                          </sba-button>
+                          <sba-button-group>
+                            <sba-button
+                              v-if="instance.registration.serviceUrl"
+                              as="a"
+                              :href="instance.registration.serviceUrl"
+                              :title="instance.registration.serviceUrl"
+                              size="2xs"
+                              referrerpolicy="no-referrer"
+                              target="_blank"
+                            >
+                              <font-awesome-icon icon="home" size="xs" />
+                            </sba-button>
+                            <sba-button
+                              v-if="instance.registration.managementUrl"
+                              as="a"
+                              :href="instance.registration.managementUrl"
+                              :title="instance.registration.managementUrl"
+                              size="2xs"
+                              referrerpolicy="no-referrer"
+                              target="_blank"
+                            >
+                              <font-awesome-icon icon="cogs" size="xs" />
+                            </sba-button>
+                            <sba-button
+                              v-if="instance.registration.healthUrl"
+                              as="a"
+                              :href="instance.registration.healthUrl"
+                              :title="instance.registration.healthUrl"
+                              size="2xs"
+                              referrerpolicy="no-referrer"
+                              target="_blank"
+                            >
+                              <font-awesome-icon icon="heartbeat" size="xs" />
+                            </sba-button>
+                          </sba-button-group>
                         </div>
                       </div>
                       <span class="instance-id" v-text="instance.id" />
                       <span class="instance-version text-right lg:text-left" v-text="instance.buildVersion" />
                     </section>
+                    <!-- Actions slot content of SBA's applications view: "Open instance details". -->
+                    <div class="hidden lg:block">
+                      <sba-button
+                        size="2xs"
+                        class="self-center mr-1 whitespace-nowrap"
+                        @click.stop="showDetails(instance)"
+                        v-text="t('instances.open_details')"
+                      />
+                    </div>
+                    </div>
                     <div
                       v-if="Object.keys(instance.tags ?? {}).length"
                       class="mt-2 hidden lg:block overflow-x-auto"
@@ -214,7 +235,7 @@
 
 <script>
 /* global SBA */
-import { computed, getCurrentInstance, reactive, ref } from "vue";
+import { computed, getCurrentInstance, reactive, ref, watch } from "vue";
 
 // SBA's status buckets (services/instance.ts) — copied since they aren't on the SBA global.
 const UP_STATES = ["UP"];
@@ -272,6 +293,7 @@ export default {
     const allApps = computed(() => applications.value ?? applications ?? []);
     const allInstances = computed(() => allApps.value.flatMap((a) => a.instances));
     const all = computed(() => getStatusInfo(allInstances.value)); // hero reflects ALL, not the filter
+    watch(all, () => (lastUpdate.value = new Date().toLocaleString()));
 
     // Subnav stats (match ApplicationStats — totals, unfiltered).
     const appCount = computed(() => allApps.value.length);

@@ -3,6 +3,7 @@ package org.alexmond.sba.store.redis;
 import java.time.Duration;
 import java.util.List;
 
+import io.lettuce.core.RedisCredentials;
 import io.lettuce.core.RedisURI;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -51,8 +52,13 @@ class ReactiveRedisEventStoreIT {
 	static void setup() {
 		RedisURI uri = RedisURI.create(System.getenv("SBA_REDIS_TEST_URI"));
 		RedisStandaloneConfiguration cfg = new RedisStandaloneConfiguration(uri.getHost(), uri.getPort());
-		if (uri.getPassword() != null) {
-			cfg.setPassword(RedisPassword.of(new String(uri.getPassword())));
+		// Lettuce 7 dropped RedisURI#getPassword(); credentials come from the URI's provider.
+		RedisCredentials credentials = uri.getCredentialsProvider().resolveCredentials().block();
+		if (credentials != null && credentials.hasPassword()) {
+			cfg.setPassword(RedisPassword.of(credentials.getPassword()));
+			if (credentials.hasUsername()) {
+				cfg.setUsername(credentials.getUsername());
+			}
 		}
 		cf = new LettuceConnectionFactory(cfg);
 		cf.afterPropertiesSet();

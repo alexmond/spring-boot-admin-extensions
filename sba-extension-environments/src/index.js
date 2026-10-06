@@ -4,10 +4,11 @@
 // info.tags.environment (environment -> application -> node). See environments.vue.
 import environments from "./environments.vue";
 import handle from "./handle.vue";
+import { addView } from "./register-view";
 
 SBA.use({
   install({ viewRegistry, i18n }) {
-    viewRegistry.addView({
+    addView(viewRegistry, {
       name: "environments",
       path: "/environments",
       component: environments,
