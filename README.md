@@ -27,7 +27,7 @@ Add the module(s) to your Spring Boot Admin **server** application:
 <dependency>
     <groupId>org.alexmond</groupId>
     <artifactId>sba-extension-live-metrics</artifactId>
-    <version>0.1.0</version>
+    <version>4.0.8.1</version>
 </dependency>
 ```
 
