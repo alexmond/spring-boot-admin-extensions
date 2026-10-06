@@ -8,14 +8,22 @@ on:
 
 jobs:
   build:
+    name: build (JDK ${{ matrix.java }})
     runs-on: ubuntu-latest
+    # Compatibility matrix: the Java 21 baseline plus the later LTS releases this Spring Boot
+    # line supports. Bytecode always targets the baseline. Reporting steps run once, on the
+    # baseline JDK, so results are not uploaded once per JDK.
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [ '21', '25' ]
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 21
+      - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: ${{ matrix.java }}
           cache: maven
       # The frontend-maven-plugin downloads its own Node/npm, so no separate Node setup is needed.
       # The store-redis integration test is skipped unless SBA_REDIS_TEST_URI is set.
