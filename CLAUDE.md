@@ -24,7 +24,9 @@ Three modules, two shapes:
 
 ## Versioning & branches
 
-Follows the machine-wide **Spring Boot extension** rule (see global CLAUDE.md): the project version tracks the Boot version it builds against (currently `0.1.0-SNAPSHOT` against Boot `4.0.7` / SBA `4.0.4`). `master`/`main` tracks the latest Boot minor; older Boot lines get their own named branches. This is the one project where the numeric-only release rule does **not** apply — match the Boot-aligned scheme.
+Follows the machine-wide **Spring Boot extension** rule (see global CLAUDE.md): the project version tracks the Boot version it builds against (on this branch `4.0.8.1-SNAPSHOT` against Boot `4.0.8` / SBA `4.0.4` — i.e. `<boot-version>.<n>`). **This is the `4.0` maintenance branch**: it gets fixes and Boot / SBA patch bumps only. `main` tracks the latest Boot minor.
+
+Security note: SBA `4.0.x` has no release that fixes GHSA-4jg4-pqcq-xf3x (stored XSS; patched only in `4.1.3` and `3.5.11`). `4.0.4` is the newest `4.0.x`. Consumers who need the fix must move to the Boot 4.1 line. This is the one project where the numeric-only release rule does **not** apply — match the Boot-aligned scheme.
 
 ## UI extension architecture (environments, live-metrics)
 

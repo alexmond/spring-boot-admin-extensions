@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.alexmond</groupId>
         <artifactId>spring-boot-admin-extensions</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>4.0.8.1-SNAPSHOT</version>
     </parent>
 
     <artifactId>sba-extension-store-redis</artifactId>
