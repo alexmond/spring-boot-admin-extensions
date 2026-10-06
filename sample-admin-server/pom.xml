@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.alexmond</groupId>
         <artifactId>spring-boot-admin-extensions</artifactId>
-        <version>4.0.8.1</version>
+        <version>4.0.8.2-SNAPSHOT</version>
     </parent>
 
     <artifactId>sample-admin-server</artifactId>
