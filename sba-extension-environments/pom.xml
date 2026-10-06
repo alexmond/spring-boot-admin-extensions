@@ -90,4 +90,57 @@
         </plugins>
     </build>
 
+    <profiles>
+        <!-- Maven Central requires a -sources and a -javadoc jar for every jar artifact. This
+             module has no Java code, so the release attaches the Vue sources and a placeholder
+             javadoc jar that says so. -->
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>ui-sources-jar</id>
+                                <phase>package</phase>
+                                <goals><goal>jar</goal></goals>
+                                <configuration>
+                                    <classifier>sources</classifier>
+                                    <classesDirectory>${project.basedir}</classesDirectory>
+                                    <includes>
+                                        <include>src/**</include>
+                                        <include>package.json</include>
+                                        <include>vite.config.js</include>
+                                    </includes>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>placeholder-javadoc-jar</id>
+                                <phase>package</phase>
+                                <goals><goal>jar</goal></goals>
+                                <configuration>
+                                    <classifier>javadoc</classifier>
+                                    <classesDirectory>${project.basedir}/src/javadoc</classesDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- The generic source/javadoc plugins have nothing to do here. -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <configuration><skipSource>true</skipSource></configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <configuration><skip>true</skip></configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
 </project>

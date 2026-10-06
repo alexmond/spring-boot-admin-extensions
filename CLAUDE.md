@@ -26,6 +26,23 @@ Three modules, two shapes:
 
 Follows the machine-wide **Spring Boot extension** rule (see global CLAUDE.md): the project version tracks the Boot version it builds against (currently `4.1.1.1-SNAPSHOT` against Boot `4.1.1` / SBA `4.1.3` — i.e. `<boot-version>.<n>`). `master`/`main` tracks the latest Boot minor; older Boot lines get their own named branches. This is the one project where the numeric-only release rule does **not** apply — match the Boot-aligned scheme.
 
+## Releasing
+
+Run the **`release-prep`** skill before tagging. `.github/workflows/maven_release.yml` (manual
+dispatch) takes `branch` / `releaseVersion` / `nextVersion`: it sets the version, updates the README
+install snippet, runs `verify`, tags (**no `v` prefix**), deploys to Maven Central with `-Prelease`
+and opens a GitHub release. Release the current line from `main`, older lines from their branch.
+
+- `-Prelease` signs and attaches `-sources` / `-javadoc` jars. The two UI modules have no Java, so
+  their module POMs build a sources jar from the Vue sources and a **placeholder javadoc jar** from
+  `src/javadoc/` — Maven Central rejects a jar artifact without both.
+- `sample-admin-server` is kept off Central by `excludeArtifacts` in the root POM.
+- Local check of the release build, without signing or publishing:
+  `./mvnw clean verify -Prelease -Dgpg.skip`, then confirm each published module has
+  `-sources.jar` and `-javadoc.jar` in `target/`. This does not build the Central bundle, so it
+  cannot prove what gets uploaded.
+- Repository secrets (`OSSRH_*`, `GPG_*`) are provisioned from the infra repo, not set by hand.
+
 ## UI extension architecture (environments, live-metrics)
 
 Both UI modules follow the same pattern; use one as a template for the other.
