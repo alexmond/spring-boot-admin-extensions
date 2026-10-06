@@ -2,7 +2,7 @@
 
 Each Spring Boot line has its own entries. Versions are `<boot-version>.<revision>`.
 
-## 4.1.1.1 (unreleased)
+## 4.1.1.1 (2026-10-06)
 
 First release to Maven Central, on Spring Boot 4.1.1 / Spring Boot Admin 4.1.3.
 
