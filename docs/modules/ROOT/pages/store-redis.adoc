@@ -74,6 +74,12 @@ management:
       enabled: false
 ----
 
+== API
+
+{api-store}/{page-component-version}/org/alexmond/sba/store/redis/ReactiveRedisEventStore.html[`ReactiveRedisEventStore`^] ·
+{api-store}/{page-component-version}/org/alexmond/sba/store/redis/RedisEventStoreProperties.html[`RedisEventStoreProperties`^] ·
+{api-store}/{page-component-version}/index.html[all classes^]
+
 == Security
 
 Events are stored with JDK serialization. Use only an authenticated Redis that nothing else can
