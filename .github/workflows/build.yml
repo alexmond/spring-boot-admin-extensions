@@ -7,11 +7,20 @@ on:
     branches: [ main, "[0-9]+.[0-9]+" ]
   pull_request:
     branches: [ "**" ]
+  workflow_dispatch:   # manual run on any branch: gh workflow run build.yml --ref <branch>
 
 jobs:
   build:
     name: build (JDK ${{ matrix.java }})
     runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      # Turns on ReactiveRedisEventStoreIT (failsafe). Points at the Redis started below.
+      SBA_REDIS_TEST_URI: redis://:ci-redis@localhost:6379
+    permissions:
+      contents: write        # for the dependency-graph snapshot submission
+      checks: write          # for the unit-test-result check run
+      pull-requests: write   # to comment test results on PRs
     # Compatibility matrix: the Java 21 baseline plus the later LTS releases this Spring Boot
     # line supports. Bytecode always targets the baseline. Reporting steps run once, on the
     # baseline JDK, so results are not uploaded once per JDK.
@@ -27,7 +36,58 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
+
+      # The Redis event store needs an authenticated Redis for its integration test. A service
+      # container cannot pass --requirepass, so start it as a step.
+      - name: Start Redis
+        run: |
+          docker run -d --name ci-redis -p 6379:6379 redis:7-alpine redis-server --requirepass ci-redis
+          for i in $(seq 1 30); do
+            docker exec ci-redis redis-cli -a ci-redis --no-auth-warning ping 2>/dev/null | grep -q PONG && exit 0
+            sleep 1
+          done
+          echo "Redis did not start" >&2; exit 1
+
       # The frontend-maven-plugin downloads its own Node/npm, so no separate Node setup is needed.
-      # The store-redis integration test is skipped unless SBA_REDIS_TEST_URI is set.
       - name: Build
         run: ./mvnw -B --no-transfer-progress verify
+
+      # Fail if the integration test was silently skipped: the whole point of the Redis above.
+      - name: Check the Redis integration test ran
+        run: |
+          report=$(ls sba-extension-store-redis/target/failsafe-reports/TEST-*.xml)
+          grep -q 'skipped="0"' $report || { echo "ReactiveRedisEventStoreIT was skipped" >&2; exit 1; }
+
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: ${{ always() && matrix.java == '21' }}
+        with:
+          files: |
+            **/surefire-reports/TEST-*.xml
+            **/failsafe-reports/TEST-*.xml
+
+      # Upload only when CODECOV_TOKEN is set; skipped otherwise so CI stays green until it is.
+      - name: Add coverage to PR
+        if: ${{ !cancelled() && env.CODECOV_TOKEN != '' && matrix.java == '21' }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ env.CODECOV_TOKEN }}
+          files: ${{ github.workspace }}/*/target/site/jacoco/jacoco.xml
+          fail_ci_if_error: true
+
+      - name: Report tests + coverage to UniTrack
+        if: ${{ always() && matrix.java == '21' }}
+        uses: alexmond/unitrack/action@v0
+        with:
+          url: ${{ vars.UNITRACK_URL }}
+          token: ${{ secrets.UNITRACK_TOKEN }}
+          junit: '**/*-reports/TEST-*.xml'
+          jacoco: '**/jacoco.xml'
+          soft-fail: "true"
+          split-by-module: "true"
+
+      # Best-effort supply-chain snapshot; needs the repo's Dependency graph feature enabled.
+      - name: Submit Dependency Snapshot
+        if: ${{ github.event_name == 'push' && matrix.java == '21' }}
+        continue-on-error: true
+        uses: advanced-security/maven-dependency-submission-action@v5

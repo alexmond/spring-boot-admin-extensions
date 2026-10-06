@@ -1,0 +1,27 @@
+= Live Metrics view
+
+`sba-extension-live-metrics` adds a *Live Metrics* view to every instance: pick any actuator
+metric and watch it as a live, rolling line chart.
+
+== Install
+
+[source,xml,subs="attributes+"]
+----
+<dependency>
+    <groupId>org.alexmond</groupId>
+    <artifactId>sba-extension-live-metrics</artifactId>
+    <version>{page-component-version}</version>
+</dependency>
+----
+
+Add it to the admin *server*. The view appears under _Insights_ for every instance that exposes
+the `metrics` actuator endpoint.
+
+== Use
+
+. Open an instance and choose *Live Metrics*.
+. Pick a metric, and optionally narrow it by tag.
+. Choose *Add graph*. Add as many as you like; each can be removed.
+
+Graphs poll the instance on the chosen interval (2 s to 30 s) and are remembered in the browser's
+local storage.

@@ -1,0 +1,15 @@
+name: spring-boot-admin-extensions
+title: Spring Boot Admin Extensions
+version: true
+start_page: ROOT:index.adoc
+asciidoc:
+  attributes:
+    # The store's API docs are version-composed: {api-store}/{page-component-version}/...
+    api-store: 'https://javadoc.io/doc/org.alexmond/sba-extension-store-redis'
+    repo: 'https://github.com/alexmond/spring-boot-admin-extensions'
+    toc: left
+    sectnums: ''
+    author: 'Alexander Mondshain'
+    email: 'alex.mondshain@gmail.com'
+nav:
+  - modules/ROOT/nav.adoc
