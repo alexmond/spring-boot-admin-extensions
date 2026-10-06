@@ -19,8 +19,11 @@ Three modules, two shapes:
 
 - **Java 21** required. Do not add `cd` before `./mvnw` — pass module paths / `-f` instead.
 - The `frontend-maven-plugin` downloads its own Node/npm (see `node.version` in the root `pom.xml`) and runs `npm ci` + `npm run build`. **You do not need Node on your PATH**, and don't run `npm install` in a UI module by hand — the Maven build owns the frontend lifecycle and `npm ci` installs reproducibly from the committed `package-lock.json`.
-- **Redis integration test** (`ReactiveRedisEventStoreIT`) is gated by `@EnabledIfEnvironmentVariable(SBA_REDIS_TEST_URI)` — skipped unless that env var points at a real, authenticated Redis, e.g. `SBA_REDIS_TEST_URI=redis://:pw@localhost:16399`. `verify` passes without it. To run it: set the var, then `./mvnw -pl sba-extension-store-redis verify`.
-- CI (`.github/workflows/build.yml`) is just `./mvnw -B --no-transfer-progress verify` on JDK 21 — no Redis, so the IT is skipped there.
+- **Tests** live only in `sba-extension-store-redis`. Unit tests (`*Tests`, surefire) use `FakeRedis`, an in-memory stand-in for the few Redis commands the store issues, so they need no Redis and carry the **80% JaCoCo line gate**. Flip `FakeRedis.down` to simulate an outage — that is how the "never blank the registry, never fail a write" promise is pinned. Add a command to `FakeRedis` when the store starts using a new one.
+- **Redis integration test** (`ReactiveRedisEventStoreIT`, failsafe) is gated by `@EnabledIfEnvironmentVariable(SBA_REDIS_TEST_URI)` — skipped unless that env var points at a real, authenticated Redis. To run it: `docker run -d --rm -p 16399:6379 redis:7-alpine redis-server --requirepass pw`, then `SBA_REDIS_TEST_URI=redis://:pw@localhost:16399 ./mvnw -pl sba-extension-store-redis verify`. A test class named `*IT` only runs because failsafe is bound in that module's POM; surefire ignores the name.
+- The UI modules have no automated tests. After any UI or Spring Boot Admin change, run `sample-admin-server` and check both extensions in a browser (navigation click **and** direct deep link, no page errors).
+- CI (`.github/workflows/build.yml`) runs `./mvnw -B --no-transfer-progress verify` on JDK 21 and 25, with a Redis container so the IT runs; a step fails the build if the IT was skipped.
+- Every admin page logs one `404` for `/mcp`. That is Spring Boot Admin's own UI probing for its MCP feature, not these extensions.
 
 ## Versioning & branches
 

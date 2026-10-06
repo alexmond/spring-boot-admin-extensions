@@ -1,0 +1,31 @@
+version: 2
+updates:
+  # Maven dependencies across the reactor. Spring Boot and Spring Boot Admin are bumped by hand:
+  # the project version tracks the Boot line, and an SBA bump needs a browser check.
+  - package-ecosystem: maven
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    ignore:
+      - dependency-name: "org.springframework.boot:*"
+      - dependency-name: "de.codecentric:*"
+    groups:
+      maven-minor-patch:
+        update-types: [ minor, patch ]
+
+  # The UI toolchain is pinned to what the Spring Boot Admin version itself builds with, so only
+  # security updates are wanted here (open-pull-requests-limit 0 = security updates only).
+  - package-ecosystem: npm
+    directories:
+      - "/sba-extension-environments"
+      - "/sba-extension-live-metrics"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
