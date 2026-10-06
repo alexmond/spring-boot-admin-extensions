@@ -1,0 +1,36 @@
+= Environments page
+
+`sba-extension-environments` adds an *Environments* page to the top navigation: the standard
+Applications view with one extra level on top, grouping applications by environment
+(environment → application → instance).
+
+== Install
+
+[source,xml,subs="attributes+"]
+----
+<dependency>
+    <groupId>org.alexmond</groupId>
+    <artifactId>sba-extension-environments</artifactId>
+    <version>{page-component-version}</version>
+</dependency>
+----
+
+Add it to the admin *server*. There is nothing to configure.
+
+== Tag your instances
+
+The page groups by the `environment` tag of each instance. Set it on the *client* application:
+
+[source,yaml]
+----
+management:
+  info:
+    env:
+      enabled: true
+info:
+  tags:
+    environment: prod
+----
+
+Grouping is per application: it is listed under the tag of its first tagged instance. An
+application with no tagged instance is listed under `untagged`.

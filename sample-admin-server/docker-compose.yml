@@ -1,0 +1,9 @@
+# Optional Redis for testing sba-extension-store-redis. The store REQUIRES an authenticated Redis
+# (JDK deserialization of untrusted bytes is an RCE vector) — hence requirepass. Password matches
+# the commented spring.data.redis.password in application.yml.
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "changeit"]
+    ports:
+      - "6379:6379"

@@ -1,0 +1,50 @@
+= Spring Boot Admin Extensions
+:description: Extensions for Spring Boot Admin — an Environments page, a Live Metrics view and a resilient Redis event store.
+
+Independent extensions for https://github.com/codecentric/spring-boot-admin[Spring Boot Admin].
+Add the ones you want to your admin *server*.
+
+[cols="1,1,3",options="header"]
+|===
+| Module | Kind | What it does
+
+| xref:environments.adoc[`sba-extension-environments`] | UI
+| An Environments page: applications grouped by environment.
+
+| xref:live-metrics.adoc[`sba-extension-live-metrics`] | UI
+| Any actuator metric as a live, rolling line chart.
+
+| xref:store-redis.adoc[`sba-extension-store-redis`] | backend
+| A Redis-backed event store that survives a Redis outage.
+|===
+
+== Versions
+
+The version tracks the Spring Boot version it is built against: `<boot-version>.<revision>`.
+Pick the line that matches your Spring Boot Admin server.
+
+[cols="1,1,1",options="header"]
+|===
+| Extensions | Spring Boot | Spring Boot Admin
+
+| 4.1.1.x | 4.1.x | 4.1.3
+| 4.0.8.x | 4.0.x | 4.0.4
+|===
+
+== Install
+
+[source,xml,subs="attributes+"]
+----
+<dependency>
+    <groupId>org.alexmond</groupId>
+    <artifactId>sba-extension-live-metrics</artifactId>
+    <version>{page-component-version}</version>
+</dependency>
+----
+
+The two UI extensions need no configuration. The Redis store is opt-in; see
+xref:store-redis.adoc[its page].
+
+== Security
+
+Read {repo}/blob/main/SECURITY.md[SECURITY.md] before pointing the Redis store at a shared Redis.

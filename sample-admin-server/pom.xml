@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.alexmond</groupId>
+        <artifactId>spring-boot-admin-extensions</artifactId>
+        <version>4.0.8.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sample-admin-server</artifactId>
+    <name>sample-admin-server</name>
+    <description>A runnable Spring Boot Admin server that wires all three extensions
+        (environments + live-metrics UI, redis event store) for manual/local testing. Self-registers
+        as its own SBA client so there is a live instance to view. Not a published artifact.</description>
+
+    <dependencies>
+        <!-- SBA server + its bundled UI (serves the extension jars from the classpath). -->
+        <dependency>
+            <groupId>de.codecentric</groupId>
+            <artifactId>spring-boot-admin-starter-server</artifactId>
+        </dependency>
+        <!-- SBA client: make this app self-register so the registry has one instance to look at. -->
+        <dependency>
+            <groupId>de.codecentric</groupId>
+            <artifactId>spring-boot-admin-starter-client</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- The three extensions under test. store-redis transitively brings Lettuce/Spring Data
+             Redis; it stays dormant unless sba.eventstore.type=redis is set (see application.yml). -->
+        <dependency>
+            <groupId>org.alexmond</groupId>
+            <artifactId>sba-extension-environments</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.alexmond</groupId>
+            <artifactId>sba-extension-live-metrics</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.alexmond</groupId>
+            <artifactId>sba-extension-store-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Enables `./mvnw -pl sample-admin-server spring-boot:run` and a runnable fat jar. -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

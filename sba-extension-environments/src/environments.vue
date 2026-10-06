@@ -163,27 +163,27 @@
                         />
                         <div class="ml-1 flex gap-1 items-start" @click.stop>
                           <sba-button
-                            v-if="instance.registration.serviceUrl"
+                            v-if="safeUrl(instance.registration.serviceUrl)"
                             as="a"
-                            :href="instance.registration.serviceUrl"
+                            :href="safeUrl(instance.registration.serviceUrl)"
                             size="2xs"
                             target="_blank"
                           >
                             <font-awesome-icon icon="home" size="xs" />
                           </sba-button>
                           <sba-button
-                            v-if="instance.registration.managementUrl"
+                            v-if="safeUrl(instance.registration.managementUrl)"
                             as="a"
-                            :href="instance.registration.managementUrl"
+                            :href="safeUrl(instance.registration.managementUrl)"
                             size="2xs"
                             target="_blank"
                           >
                             <font-awesome-icon icon="clipboard-list" size="xs" />
                           </sba-button>
                           <sba-button
-                            v-if="instance.registration.healthUrl"
+                            v-if="safeUrl(instance.registration.healthUrl)"
                             as="a"
-                            :href="instance.registration.healthUrl"
+                            :href="safeUrl(instance.registration.healthUrl)"
                             size="2xs"
                             target="_blank"
                           >
@@ -245,6 +245,10 @@ const statusOf = (instances) => {
   if (s.some((x) => UNKNOWN_STATES.includes(x))) return "UNKNOWN";
   return s[0] || "UNKNOWN";
 };
+
+// Registration URLs come from the registering instance, so they are untrusted. Only link plain
+// web URLs: a `javascript:` (or other scheme) URL bound to href would run on click.
+const safeUrl = (url) => (typeof url === "string" && /^https?:\/\//i.test(url.trim()) ? url.trim() : null);
 
 export default {
   setup() {
@@ -329,7 +333,7 @@ export default {
     const toggleEnv = (name) => toggle(openEnvs, name);
     return {
       environments, all, lastUpdate, q, appCount, instanceCount, refresh, showDetails,
-      openEnvs, openApps, toggle, toggleEnv, isEnvOpen, isAppOpen, statusOf, t,
+      openEnvs, openApps, toggle, toggleEnv, isEnvOpen, isAppOpen, statusOf, safeUrl, t,
     };
   },
 };

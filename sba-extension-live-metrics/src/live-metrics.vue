@@ -18,8 +18,8 @@
           <span class="text-gray-500" v-text="t('live-metrics.metric')" />
           <select
             v-model="selMetric"
-            class="border border-gray-300 rounded px-2 py-1 bg-white disabled:opacity-50"
-            style="min-width:14rem;max-width:22rem"
+            class="border border-gray-300 rounded pl-2 py-1 bg-white disabled:opacity-50"
+            style="min-width:14rem;max-width:22rem;padding-right:2rem"
             :disabled="!metricNames.length"
             @change="onMetricChange"
           >
@@ -31,7 +31,7 @@
         <!-- Optional tag filters for the chosen metric (drill down like the Metrics view). -->
         <label v-for="at in availTags" :key="at.tag" class="flex items-center gap-1 text-sm">
           <span class="text-gray-400" v-text="at.tag" />
-          <select v-model="selTags[at.tag]" class="border border-gray-300 rounded px-2 py-1 bg-white" style="max-width:16rem">
+          <select v-model="selTags[at.tag]" class="border border-gray-300 rounded pl-2 py-1 bg-white" style="max-width:16rem;padding-right:2rem">
             <option value="">{{ t('live-metrics.tag_all') }}</option>
             <option v-for="v in at.values" :key="v" :value="v" v-text="v" />
           </select>
@@ -46,7 +46,7 @@
 
         <label class="flex items-center gap-1 text-sm">
           <span class="text-gray-500" v-text="t('live-metrics.every')" />
-          <select v-model.number="intervalMs" class="border border-gray-300 rounded px-2 py-1 bg-white" @change="restartPolling">
+          <select v-model.number="intervalMs" class="border border-gray-300 rounded pl-2 py-1 bg-white" style="padding-right:2rem" @change="restartPolling">
             <option :value="2000">2s</option>
             <option :value="5000">5s</option>
             <option :value="10000">10s</option>

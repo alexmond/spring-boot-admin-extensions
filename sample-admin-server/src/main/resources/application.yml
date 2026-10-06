@@ -1,0 +1,54 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: sample-admin-server
+  boot:
+    admin:
+      client:
+        # Self-register with the admin running in this same JVM, so the registry has one live
+        # instance to view (needed for the Environments + Live Metrics UI extensions to show data).
+        url: http://localhost:8080
+        instance:
+          service-base-url: http://localhost:8080
+
+  # --- Redis event store (sba-extension-store-redis) — OFF by default ------------------------------
+  # The sample runs with SBA's in-memory store and ZERO external dependencies. To test the Redis
+  # store instead: start a Redis (`docker compose up -d` in this module), then uncomment BOTH the
+  # spring.data.redis block below and the sba.eventstore block further down.
+  #
+  # data:
+  #   redis:
+  #     host: localhost
+  #     port: 6379
+  #     password: changeit
+
+# sba:
+#   eventstore:
+#     type: redis
+#     redis:
+#       key-prefix: sba:eventstore
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"          # expose metrics/health/env/... so Live Metrics + health have data
+  endpoint:
+    health:
+      show-details: always    # so the eventStorePersistence DEGRADED detail is visible in health
+  health:
+    redis:
+      # OFF on purpose. store-redis pulls in spring-data-redis, which would otherwise register
+      # Boot's generic Redis health check — it probes localhost:6379 and reports the whole app DOWN
+      # even when the store is dormant. By design, the store's own `eventStorePersistence` indicator
+      # (DEGRADED, HTTP 200) is the Redis signal, so keep this generic check disabled either way.
+      enabled: false
+  info:
+    env:
+      enabled: true           # surface info.* (incl. info.tags.environment) to the SBA client
+
+info:
+  tags:
+    environment: dev          # sba-extension-environments groups instances by info.tags.environment

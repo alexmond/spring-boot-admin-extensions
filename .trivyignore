@@ -1,0 +1,4 @@
+# GHSA-g2v6-rqmx-r4w6 — XSS in @vue/server-renderer (server-side rendering), fixed in vue 3.5.42+.
+# vue is pinned to 3.5.32 on this branch to match the Vue runtime that Spring Boot Admin 4.0.4
+# ships; the extensions externalize Vue and never use or bundle the server renderer.
+GHSA-g2v6-rqmx-r4w6
