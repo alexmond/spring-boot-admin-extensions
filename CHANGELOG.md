@@ -1,0 +1,11 @@
+# Changelog
+
+Each Spring Boot line has its own entries. Versions are `<boot-version>.<revision>`.
+
+## 4.0.8.1 (unreleased)
+
+First release to Maven Central, on Spring Boot 4.0.8 / Spring Boot Admin 4.0.4.
+
+- `sba-extension-environments` — an Environments page grouping applications by `info.tags.environment`.
+- `sba-extension-live-metrics` — live, rolling time-series charts for any actuator metric.
+- `sba-extension-store-redis` — a resilient Redis-backed `InstanceEventStore`.

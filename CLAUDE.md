@@ -28,6 +28,23 @@ Follows the machine-wide **Spring Boot extension** rule (see global CLAUDE.md): 
 
 Security note: SBA `4.0.x` has no release that fixes GHSA-4jg4-pqcq-xf3x (stored XSS; patched only in `4.1.3` and `3.5.11`). `4.0.4` is the newest `4.0.x`. Consumers who need the fix must move to the Boot 4.1 line. This is the one project where the numeric-only release rule does **not** apply — match the Boot-aligned scheme.
 
+## Releasing
+
+Run the **`release-prep`** skill before tagging. `.github/workflows/maven_release.yml` (manual
+dispatch) takes `branch` / `releaseVersion` / `nextVersion`: it sets the version, updates the README
+install snippet, runs `verify`, tags (**no `v` prefix**), deploys to Maven Central with `-Prelease`
+and opens a GitHub release. Release the current line from `main`, older lines from their branch.
+
+- `-Prelease` signs and attaches `-sources` / `-javadoc` jars. The two UI modules have no Java, so
+  their module POMs build a sources jar from the Vue sources and a **placeholder javadoc jar** from
+  `src/javadoc/` — Maven Central rejects a jar artifact without both.
+- `sample-admin-server` is kept off Central by `excludeArtifacts` in the root POM.
+- Local check of the release build, without signing or publishing:
+  `./mvnw clean verify -Prelease -Dgpg.skip`, then confirm each published module has
+  `-sources.jar` and `-javadoc.jar` in `target/`. This does not build the Central bundle, so it
+  cannot prove what gets uploaded.
+- Repository secrets (`OSSRH_*`, `GPG_*`) are provisioned from the infra repo, not set by hand.
+
 ## UI extension architecture (environments, live-metrics)
 
 Both UI modules follow the same pattern; use one as a template for the other.
