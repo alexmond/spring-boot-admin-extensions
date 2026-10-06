@@ -1,0 +1,90 @@
+name: Maven Release
+
+# Release one Spring Boot line. `branch` selects the line: main = the latest Boot line,
+# or a <major>.<minor> maintenance branch. The version tracks Boot: <boot-version>.<revision>
+# (e.g. 4.1.1.1 on Boot 4.1.1), so releaseVersion/nextVersion move the trailing revision.
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to release from (main = latest Boot line)'
+        required: true
+        default: 'main'
+      releaseVersion:
+        description: 'Release version (<boot-version>.<revision>, e.g. 4.1.1.1)'
+        required: true
+      nextVersion:
+        description: 'Next development version (with -SNAPSHOT suffix)'
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push the release commit + tag, create the GitHub release
+    env:
+      BRANCH: ${{ github.event.inputs.branch }}
+      RELEASE_VERSION: ${{ github.event.inputs.releaseVersion }}
+      NEXT_VERSION: ${{ github.event.inputs.nextVersion }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 0
+
+      # Release on the Java baseline. The frontend-maven-plugin downloads its own Node/npm.
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+          server-id: central
+          server-username: OSSRH_USERNAME
+          server-password: OSSRH_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Set Release Version
+        run: |
+          ./mvnw versions:set -DnewVersion="$RELEASE_VERSION" -DgenerateBackupPoms=false --no-transfer-progress
+          # versions:set only touches the POMs. Keep the README install snippet in step.
+          sed -i -E "s#<version>[0-9][0-9.]*(-SNAPSHOT)?</version>#<version>$RELEASE_VERSION</version>#" README.md
+
+      - name: Verify Build
+        run: ./mvnw --batch-mode verify --no-transfer-progress
+
+      - name: Commit and Tag Release
+        run: |
+          git commit -am "Prepare release $RELEASE_VERSION"
+          git tag -a "$RELEASE_VERSION" -m "Release $RELEASE_VERSION"
+
+      - name: Deploy to Maven Central
+        run: ./mvnw --batch-mode clean deploy -Prelease -Dgpg.passphrase="${GPG_PASSPHRASE}" --no-transfer-progress
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Set Next Development Version
+        run: |
+          ./mvnw versions:set -DnewVersion="$NEXT_VERSION" -DgenerateBackupPoms=false --no-transfer-progress
+          git commit -am "Prepare for next development iteration: $NEXT_VERSION"
+
+      - name: Push Changes
+        run: git push origin "$BRANCH" && git push origin --tags
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.releaseVersion }}
+          name: Release ${{ github.event.inputs.releaseVersion }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
