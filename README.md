@@ -1,5 +1,10 @@
 # spring-boot-admin-extensions
 
+[![Maven Central](https://img.shields.io/maven-central/v/org.alexmond/sba-extension-store-redis.svg)](https://central.sonatype.com/namespace/org.alexmond)
+[![Build](https://github.com/alexmond/spring-boot-admin-extensions/actions/workflows/build.yml/badge.svg)](https://github.com/alexmond/spring-boot-admin-extensions/actions/workflows/build.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Java 21+](https://img.shields.io/badge/Java-21%2B-blue.svg)](#build)
+
 A small collection of extensions for [Spring Boot Admin](https://github.com/codecentric/spring-boot-admin)
 (SBA) — two custom UI pages and one resilient backend event store. Each is an independent module;
 add the ones you want to your SBA **server**'s classpath.
@@ -40,10 +45,25 @@ Add the module(s) to your Spring Boot Admin **server** application:
 ```xml
 <dependency>
     <groupId>org.alexmond</groupId>
+    <artifactId>sba-extension-environments</artifactId>
+    <version>4.1.1.1</version>
+</dependency>
+<dependency>
+    <groupId>org.alexmond</groupId>
     <artifactId>sba-extension-live-metrics</artifactId>
     <version>4.1.1.1</version>
 </dependency>
+<dependency>
+    <groupId>org.alexmond</groupId>
+    <artifactId>sba-extension-store-redis</artifactId>
+    <version>4.1.1.1</version>
+</dependency>
 ```
+
+Each module has its own README with setup details:
+[environments](sba-extension-environments/README.md) ·
+[live-metrics](sba-extension-live-metrics/README.md) ·
+[store-redis](sba-extension-store-redis/README.md).
 
 ### `sba-extension-store-redis` config
 
@@ -82,8 +102,12 @@ documented in the generated `spring-configuration-metadata.json` (IDE autocomple
 ```
 
 Java 21. The frontend-maven-plugin downloads its own Node/npm to build the Vue UI modules — you don't
-need Node on your `PATH`. The `store-redis` integration test only runs when `SBA_REDIS_TEST_URI` points
-at a real Redis; otherwise it's skipped.
+need Node on your `PATH`. The `store-redis` unit tests need no Redis; its integration test also runs
+when `SBA_REDIS_TEST_URI` points at a real Redis (CI does this).
+
+## Security
+
+See [SECURITY.md](SECURITY.md) — in particular before pointing the Redis store at a shared Redis.
 
 ## License
 

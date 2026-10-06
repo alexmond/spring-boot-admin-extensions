@@ -1,0 +1,80 @@
+= Redis event store
+
+`sba-extension-store-redis` is a Redis-backed `InstanceEventStore` that keeps the registry across
+admin restarts without making Redis a single point of failure.
+
+* The in-memory log stays authoritative. Reads never touch Redis.
+* Every write is mirrored to Redis in the background.
+* A Redis outage never blanks the registry and never fails a write.
+* On startup the store replays the mirrored log back into memory.
+
+== Install
+
+[source,xml,subs="attributes+"]
+----
+<dependency>
+    <groupId>org.alexmond</groupId>
+    <artifactId>sba-extension-store-redis</artifactId>
+    <version>{page-component-version}</version>
+</dependency>
+----
+
+[source,yaml]
+----
+spring:
+  data:
+    redis:
+      host: redis.internal
+      port: 6379
+      password: ${REDIS_PASSWORD}
+
+sba:
+  eventstore:
+    type: redis
+----
+
+Without `sba.eventstore.type=redis` the jar does nothing.
+
+== Properties
+
+All are optional. Prefix: `sba.eventstore.redis`.
+
+[cols="1,1,3",options="header"]
+|===
+| Property | Default | Meaning
+
+| `key-prefix` | `sba:eventstore`
+| Redis key namespace: `<prefix>:events:<instanceId>` and `<prefix>:instances`.
+
+| `timeout` | `3s`
+| Timeout for each Redis command.
+
+| `event-ttl` | `24h`
+| Time-to-live of an instance's key, refreshed on every write. `0` or negative means never expire.
+
+| `hydrate-on-startup` | `true`
+| Replay the mirrored log into memory when the admin starts.
+
+| `hydrate-discovered` | `false`
+| Also replay instances that came from a `DiscoveryClient`. Off by default, because discovery
+re-registers the live ones itself.
+|===
+
+== Health
+
+The `eventStorePersistence` health indicator reports `UP` while Redis is reachable and `DEGRADED`
+(HTTP 200) while it is not. Keep it out of liveness and readiness groups, and switch off Spring
+Boot's generic Redis check, which would report `DOWN`:
+
+[source,yaml]
+----
+management:
+  health:
+    redis:
+      enabled: false
+----
+
+== Security
+
+Events are stored with JDK serialization. Use only an authenticated Redis that nothing else can
+write to. See {repo}/blob/main/SECURITY.md[SECURITY.md].

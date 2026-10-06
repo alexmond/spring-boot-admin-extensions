@@ -60,6 +60,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+        <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
         <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
         <!-- Spring Boot Admin server/client — tracks the Boot minor line (SBA 4.1.x ↔ Boot 4.1.x).
              4.1.3 is the minimum worth building against: it fixes GHSA-4jg4-pqcq-xf3x (stored XSS).
