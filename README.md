@@ -19,6 +19,20 @@ The two UI modules ship as resource jars carrying a built Vue bundle under
 `META-INF/spring-boot-admin-server-ui/extensions/`; SBA serves them from the classpath automatically —
 there's nothing to wire, just add the dependency.
 
+## Versions
+
+The version tracks the Spring Boot version it is built against: `<boot-version>.<revision>`.
+Pick the line that matches your Spring Boot Admin server.
+
+| Extensions | Spring Boot | Spring Boot Admin | Branch |
+|---|---|---|---|
+| `4.1.1.x` | 4.1.x | 4.1.3 | `main` |
+| `4.0.8.x` | 4.0.x | 4.0.4 | `4.0` |
+
+Spring Boot Admin `4.0.x` has no release that fixes
+[GHSA-4jg4-pqcq-xf3x](https://github.com/codecentric/spring-boot-admin/security/advisories/GHSA-4jg4-pqcq-xf3x)
+(stored XSS). Use the 4.1 line if you need that fix.
+
 ## Using it
 
 Add the module(s) to your Spring Boot Admin **server** application:
