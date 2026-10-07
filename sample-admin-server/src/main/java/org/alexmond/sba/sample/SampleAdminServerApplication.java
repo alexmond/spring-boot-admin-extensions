@@ -17,6 +17,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 @EnableAdminServer
 @SpringBootApplication
+// Instantiated by Spring as a configuration class, so not a utility class.
+@SuppressWarnings("PMD.UseUtilityClass")
 public class SampleAdminServerApplication {
 
 	public static void main(String[] args) {

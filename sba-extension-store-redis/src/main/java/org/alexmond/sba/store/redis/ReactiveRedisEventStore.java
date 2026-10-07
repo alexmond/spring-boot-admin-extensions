@@ -9,6 +9,7 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -28,8 +29,6 @@ import de.codecentric.boot.admin.server.domain.values.InstanceId;
 import de.codecentric.boot.admin.server.domain.values.Registration;
 import de.codecentric.boot.admin.server.eventstore.InMemoryEventStore;
 import de.codecentric.boot.admin.server.eventstore.OptimisticLockingException;
-
-import static java.util.Comparator.comparingLong;
 
 /**
  * Resilient Redis-backed
@@ -176,7 +175,9 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 		return readAllFromRedis().collectMultimap(InstanceEvent::getInstance)
 			.flatMapMany((byInstance) -> Flux.fromIterable(byInstance.values()))
 			.flatMap((events) -> {
-				List<InstanceEvent> ordered = events.stream().sorted(comparingLong(InstanceEvent::getVersion)).toList();
+				List<InstanceEvent> ordered = events.stream()
+					.sorted(Comparator.comparingLong(InstanceEvent::getVersion))
+					.toList();
 				// Don't resurrect discovery-sourced instances (unless explicitly
 				// enabled): SBA's
 				// InstanceDiscoveryListener re-registers the currently-live ones on
