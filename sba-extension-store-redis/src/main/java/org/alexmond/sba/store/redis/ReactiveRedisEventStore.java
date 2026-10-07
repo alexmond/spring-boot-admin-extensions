@@ -9,6 +9,7 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -29,46 +30,56 @@ import de.codecentric.boot.admin.server.domain.values.Registration;
 import de.codecentric.boot.admin.server.eventstore.InMemoryEventStore;
 import de.codecentric.boot.admin.server.eventstore.OptimisticLockingException;
 
-import static java.util.Comparator.comparingLong;
-
 /**
- * Resilient Redis-backed {@link de.codecentric.boot.admin.server.eventstore.InstanceEventStore} for
- * Spring Boot Admin. <strong>The in-memory event log is authoritative</strong> (this extends SBA's
- * {@link InMemoryEventStore}); Redis is a best-effort, fully reactive <em>write-behind mirror</em>
- * used for durability across restarts.
+ * Resilient Redis-backed
+ * {@link de.codecentric.boot.admin.server.eventstore.InstanceEventStore} for Spring Boot
+ * Admin. <strong>The in-memory event log is authoritative</strong> (this extends SBA's
+ * {@link InMemoryEventStore}); Redis is a best-effort, fully reactive <em>write-behind
+ * mirror</em> used for durability across restarts.
  *
- * <p>Why this shape (learned the hard way): a Redis outage must never blank the SBA registry, and a
- * blocking Redis call on a reactor thread deadlocks SBA. So:
+ * <p>
+ * Why this shape (learned the hard way): a Redis outage must never blank the SBA
+ * registry, and a blocking Redis call on a reactor thread deadlocks SBA. So:
  * <ul>
- *   <li><b>Reads</b> ({@code findAll}/{@code find}) are served entirely from memory — inherited from
- *       {@code InMemoryEventStore} — so they always work, even with Redis down.</li>
- *   <li><b>Writes</b> ({@link #append}) commit to memory first (authoritative, optimistic-locked,
- *       published), then fire a non-blocking Lettuce mirror to Redis as a side-effect. If the mirror
- *       fails, the append still succeeds; the failure is recorded (see {@link #persistenceStatus()})
- *       and surfaced by the {@code eventStorePersistence} health indicator — it never propagates.</li>
- *   <li><b>Startup</b> {@link #hydrate()} replays the persisted log back into memory (best-effort),
- *       so the registry survives an admin restart. By default it <em>skips discovery-sourced</em>
- *       instances (SBA's DiscoveryClient re-registers the live ones and prunes the rest), so it never
- *       resurrects dead instances as ghosts; live discovery wins any version conflict.</li>
+ * <li><b>Reads</b> ({@code findAll}/{@code find}) are served entirely from memory —
+ * inherited from {@code InMemoryEventStore} — so they always work, even with Redis
+ * down.</li>
+ * <li><b>Writes</b> ({@link #append}) commit to memory first (authoritative,
+ * optimistic-locked, published), then fire a non-blocking Lettuce mirror to Redis as a
+ * side-effect. If the mirror fails, the append still succeeds; the failure is recorded
+ * (see {@link #persistenceStatus()}) and surfaced by the {@code eventStorePersistence}
+ * health indicator — it never propagates.</li>
+ * <li><b>Startup</b> {@link #hydrate()} replays the persisted log back into memory
+ * (best-effort), so the registry survives an admin restart. By default it <em>skips
+ * discovery-sourced</em> instances (SBA's DiscoveryClient re-registers the live ones and
+ * prunes the rest), so it never resurrects dead instances as ghosts; live discovery wins
+ * any version conflict.</li>
  * </ul>
  *
- * <p>Storage: one sorted set per instance, {@code <prefix>:events:<instanceId>}, scored by event
- * version, member = Base64 of the JDK-serialized {@link InstanceEvent}; plus a set
- * {@code <prefix>:instances} of known instance ids. The optimistic lock lives in the in-memory
- * store now, so the mirror is a plain idempotent {@code ZADD} (no Lua needed). Each event key carries
- * a refreshed TTL (see {@code eventTtl}) so an instance that stops being written self-evicts — the
- * mirror doesn't accumulate stale ids across restarts/re-registrations.
+ * <p>
+ * Storage: one sorted set per instance, {@code <prefix>:events:<instanceId>}, scored by
+ * event version, member = Base64 of the JDK-serialized {@link InstanceEvent}; plus a set
+ * {@code <prefix>:instances} of known instance ids. The optimistic lock lives in the
+ * in-memory store now, so the mirror is a plain idempotent {@code ZADD} (no Lua needed).
+ * Each event key carries a refreshed TTL (see {@code eventTtl}) so an instance that stops
+ * being written self-evicts — the mirror doesn't accumulate stale ids across
+ * restarts/re-registrations.
  *
- * <p><strong>Security:</strong> events are JDK-serialized (like SBA's {@code HazelcastEventStore}).
- * JDK deserialization of untrusted bytes is an RCE vector, so the Redis MUST be trusted:
- * authenticated + network-restricted to the admin (the deploy enforces requirepass + a
- * NetworkPolicy). Do not point this at a shared/open Redis.
+ * <p>
+ * <strong>Security:</strong> events are JDK-serialized (like SBA's
+ * {@code HazelcastEventStore}). JDK deserialization of untrusted bytes is an RCE vector,
+ * so the Redis MUST be trusted: authenticated + network-restricted to the admin (the
+ * deploy enforces requirepass + a NetworkPolicy). Do not point this at a shared/open
+ * Redis.
  */
 public class ReactiveRedisEventStore extends InMemoryEventStore {
 
 	private static final Logger log = LoggerFactory.getLogger(ReactiveRedisEventStore.class);
 
-	/** SBA's registration source for instances found via a DiscoveryClient (InstanceDiscoveryListener). */
+	/**
+	 * SBA's registration source for instances found via a DiscoveryClient
+	 * (InstanceDiscoveryListener).
+	 */
 	private static final String DISCOVERY_SOURCE = "discovery";
 
 	private final ReactiveStringRedisTemplate redis;
@@ -113,7 +124,8 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 
 	@Override
 	public Mono<Void> append(List<InstanceEvent> events) {
-		// In-memory is authoritative: commit (optimistic-locked) + publish first, then mirror.
+		// In-memory is authoritative: commit (optimistic-locked) + publish first, then
+		// mirror.
 		return super.append(events).doOnSuccess((v) -> mirror(events));
 	}
 
@@ -122,14 +134,11 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 		if (events == null || events.isEmpty()) {
 			return;
 		}
-		redisWrite(events)
-			.doOnSuccess((v) -> markReachable(true, null, this.mirrorSuccesses))
-			.onErrorResume((ex) -> {
-				markReachable(false, ex, this.mirrorFailures);
-				log.warn("Redis mirror failed (registry unaffected; served from memory): {}", ex.toString());
-				return Mono.empty();
-			})
-			.subscribe();
+		redisWrite(events).doOnSuccess((v) -> markReachable(true, null, this.mirrorSuccesses)).onErrorResume((ex) -> {
+			markReachable(false, ex, this.mirrorFailures);
+			log.warn("Redis mirror failed (registry unaffected; served from memory): {}", ex.toString());
+			return Mono.empty();
+		}).subscribe();
 	}
 
 	private Mono<Void> redisWrite(List<InstanceEvent> events) {
@@ -138,8 +147,10 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 		Set<ZSetOperations.TypedTuple<String>> tuples = events.stream()
 			.map((e) -> ZSetOperations.TypedTuple.of(serialize(e), (double) e.getVersion()))
 			.collect(Collectors.toSet());
-		// ZADD, then (re)set the TTL so a live instance's key stays fresh while a dead one (no more
-		// writes — e.g. an instance re-registered under a new id) self-evicts. SADD tracks known ids.
+		// ZADD, then (re)set the TTL so a live instance's key stays fresh while a dead
+		// one (no more
+		// writes — e.g. an instance re-registered under a new id) self-evicts. SADD
+		// tracks known ids.
 		Mono<Boolean> refreshTtl = ttlEnabled() ? this.redis.expire(eventKey, this.eventTtl) : Mono.just(true);
 		return this.redis.opsForZSet()
 			.addAll(eventKey, tuples)
@@ -154,28 +165,33 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 	}
 
 	/**
-	 * Best-effort replay of the persisted log back into the in-memory store (called once on startup).
-	 * Uses {@code super.append} so it repopulates + publishes to the registry WITHOUT re-mirroring to
-	 * Redis; per-instance {@link OptimisticLockingException}s (live discovery already advanced that
-	 * instance) are ignored. Returns the number of instances hydrated; 0 if Redis is unavailable.
+	 * Best-effort replay of the persisted log back into the in-memory store (called once
+	 * on startup). Uses {@code super.append} so it repopulates + publishes to the
+	 * registry WITHOUT re-mirroring to Redis; per-instance
+	 * {@link OptimisticLockingException}s (live discovery already advanced that instance)
+	 * are ignored. Returns the number of instances hydrated; 0 if Redis is unavailable.
 	 */
 	public Mono<Integer> hydrate() {
 		return readAllFromRedis().collectMultimap(InstanceEvent::getInstance)
 			.flatMapMany((byInstance) -> Flux.fromIterable(byInstance.values()))
 			.flatMap((events) -> {
 				List<InstanceEvent> ordered = events.stream()
-					.sorted(comparingLong(InstanceEvent::getVersion))
+					.sorted(Comparator.comparingLong(InstanceEvent::getVersion))
 					.toList();
-				// Don't resurrect discovery-sourced instances (unless explicitly enabled): SBA's
-				// InstanceDiscoveryListener re-registers the currently-live ones on startup and its
-				// removeStaleInstances() deregisters the rest, so replaying them would just show dead
-				// instances (e.g. old k8s pod IPs) as ghosts until the next discovery scan. Instances
-				// discovery will NOT restore (client self-registrations) are always hydrated.
+				// Don't resurrect discovery-sourced instances (unless explicitly
+				// enabled): SBA's
+				// InstanceDiscoveryListener re-registers the currently-live ones on
+				// startup and its
+				// removeStaleInstances() deregisters the rest, so replaying them would
+				// just show dead
+				// instances (e.g. old k8s pod IPs) as ghosts until the next discovery
+				// scan. Instances
+				// discovery will NOT restore (client self-registrations) are always
+				// hydrated.
 				if (!this.hydrateDiscovered && isDiscoverySourced(ordered)) {
 					return Mono.just(0);
 				}
-				return super.append(ordered)
-					.thenReturn(1)
+				return super.append(ordered).thenReturn(1)
 					.onErrorResume(OptimisticLockingException.class, (ex) -> Mono.just(0));
 			})
 			.reduce(0, Integer::sum)
@@ -193,12 +209,16 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 			.flatMap((id) -> this.redis.opsForZSet()
 				.range(this.eventKeyPrefix + id, Range.closed(0L, -1L))
 				.map(this::deserialize)
-				// ZSET gone (TTL-expired) but the id still lingers in the set → prune the stale member.
+				// ZSET gone (TTL-expired) but the id still lingers in the set → prune the
+				// stale member.
 				.switchIfEmpty(this.redis.opsForSet().remove(this.instancesKey, id).thenMany(Flux.empty())))
 			.timeout(this.timeout);
 	}
 
-	/** True if the latest registration in the log came from a DiscoveryClient (source="discovery"). */
+	/**
+	 * True if the latest registration in the log came from a DiscoveryClient
+	 * (source="discovery").
+	 */
 	private static boolean isDiscoverySourced(List<InstanceEvent> events) {
 		for (int i = events.size() - 1; i >= 0; i--) {
 			if (events.get(i) instanceof InstanceRegisteredEvent registered) {
@@ -209,7 +229,10 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 		return false;
 	}
 
-	/** Lightweight reachability probe for the health indicator (updates the tracked status). */
+	/**
+	 * Lightweight reachability probe for the health indicator (updates the tracked
+	 * status).
+	 */
 	public Mono<Boolean> ping() {
 		return this.redis.hasKey(this.instancesKey)
 			.timeout(this.timeout)
@@ -263,9 +286,11 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 		}
 	}
 
-	/** Immutable snapshot of the Redis mirror's health, surfaced via the health indicator. */
-	public record PersistenceStatus(boolean reachable, long mirrorSuccesses, long mirrorFailures,
-			Instant lastSuccessAt, Instant lastFailureAt, String lastError) {
+	/**
+	 * Immutable snapshot of the Redis mirror's health, surfaced via the health indicator.
+	 */
+	public record PersistenceStatus(boolean reachable, long mirrorSuccesses, long mirrorFailures, Instant lastSuccessAt,
+			Instant lastFailureAt, String lastError) {
 	}
 
 }

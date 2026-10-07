@@ -25,6 +25,18 @@ Three modules, two shapes:
 - CI (`.github/workflows/build.yml`) runs `./mvnw -B --no-transfer-progress verify` on JDK 21 and 25, with a Redis container so the IT runs; a step fails the build if the IT was skipped.
 - Every admin page logs one `404` for `/mcp`. That is Spring Boot Admin's own UI probing for its MCP feature, not these extensions.
 
+## Code style & quality gates
+
+Three gates run in every build, on the Java modules (`sba-extension-store-redis`, `sample-admin-server`):
+
+- **spring-javaformat** (`validate` phase) — Spring code style, **tabs** for indentation. It fails the build on unformatted code. Run `./mvnw spring-javaformat:apply` before committing.
+- **Checkstyle** (`validate` phase) — `checkstyle.xml` (Spring checks) with `checkstyle-suppressions.xml`. Covers main and test sources.
+- **PMD** (`process-classes` phase, so type-resolution rules see compiled classes) — `pmd-ruleset.xml`. Main sources only.
+
+Fix a violation in the code. Suppress only when a rule would force an API change, and keep the suppression narrow (`@SuppressWarnings("PMD.Rule")` with a reason, or one line in the suppressions file).
+
+The two UI modules have no Java and skip all three plugins (`*.skip` properties in their POMs). There is no JS/Vue linting. `.editorconfig` carries the indentation rules for editors. `.git-blame-ignore-revs` lists the mechanical reformat commit — use `git blame --ignore-revs-file .git-blame-ignore-revs`.
+
 ## Versioning & branches
 
 Follows the machine-wide **Spring Boot extension** rule (see global CLAUDE.md): the project version tracks the Boot version it builds against (currently `4.1.1.1-SNAPSHOT` against Boot `4.1.1` / SBA `4.1.3` — i.e. `<boot-version>.<n>`). `master`/`main` tracks the latest Boot minor; older Boot lines get their own named branches. This is the one project where the numeric-only release rule does **not** apply — match the Boot-aligned scheme.
