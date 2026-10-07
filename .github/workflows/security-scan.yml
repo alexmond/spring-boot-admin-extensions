@@ -21,7 +21,7 @@ jobs:
       contents: read
       security-events: write # upload findings to the Security tab
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Trivy dependency vulnerability scan
         uses: aquasecurity/trivy-action@v0.36.0
@@ -30,6 +30,9 @@ jobs:
           scan-ref: .
           scanners: vuln
           severity: HIGH,CRITICAL
+          # Without this, SARIF output includes every severity and exit-code 1 fires on
+          # MEDIUM/LOW findings too, ignoring the severity filter above.
+          limit-severities-for-sarif: true
           ignore-unfixed: true # only fail on CVEs that actually have a fix available
           exit-code: '1'
           format: sarif

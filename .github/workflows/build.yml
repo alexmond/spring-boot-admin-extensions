@@ -29,7 +29,7 @@ jobs:
       matrix:
         java: [ '21', '25' ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@v4
         with:
@@ -69,7 +69,7 @@ jobs:
       # Upload only when CODECOV_TOKEN is set; skipped otherwise so CI stays green until it is.
       - name: Add coverage to PR
         if: ${{ !cancelled() && env.CODECOV_TOKEN != '' && matrix.java == '21' }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ env.CODECOV_TOKEN }}
           files: ${{ github.workspace }}/*/target/site/jacoco/jacoco.xml
@@ -90,4 +90,4 @@ jobs:
       - name: Submit Dependency Snapshot
         if: ${{ github.event_name == 'push' && matrix.java == '21' }}
         continue-on-error: true
-        uses: advanced-security/maven-dependency-submission-action@v5
+        uses: advanced-security/maven-dependency-submission-action@v6
