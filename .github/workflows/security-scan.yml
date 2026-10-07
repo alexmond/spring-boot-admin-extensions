@@ -21,7 +21,7 @@ jobs:
       contents: read
       security-events: write # upload findings to the Security tab
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Trivy dependency vulnerability scan
         uses: aquasecurity/trivy-action@v0.36.0
