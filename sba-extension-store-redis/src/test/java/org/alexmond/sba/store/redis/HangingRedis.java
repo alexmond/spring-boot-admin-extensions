@@ -8,7 +8,10 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** A Redis that accepts the command and never answers — what a network black hole looks like. */
+/**
+ * A Redis that accepts the command and never answers — what a network black hole looks
+ * like.
+ */
 final class HangingRedis {
 
 	final ReactiveStringRedisTemplate template = mock(ReactiveStringRedisTemplate.class);

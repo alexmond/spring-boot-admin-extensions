@@ -19,6 +19,13 @@
         the useApplicationStore data. Built with Vite/Vue and shipped as a resources jar under
         META-INF/spring-boot-admin-server-ui/extensions/environments.</description>
 
+    <properties>
+        <!-- This module has no Java code: skip the Java formatter and linters. -->
+        <spring-javaformat.skip>true</spring-javaformat.skip>
+        <checkstyle.skip>true</checkstyle.skip>
+        <pmd.skip>true</pmd.skip>
+    </properties>
+
     <build>
         <plugins>
             <!-- Build the Vue extension with a self-contained Node/npm (downloaded, not required
