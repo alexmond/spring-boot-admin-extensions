@@ -1,0 +1,6 @@
+# Commits to skip in git blame: mechanical reformats only.
+# Use: git blame --ignore-revs-file .git-blame-ignore-revs
+# (or once: git config blame.ignoreRevsFile .git-blame-ignore-revs)
+
+# style: apply spring-javaformat
+e4b577fc32b79d312c45e277df6e93ae41ce69f5
