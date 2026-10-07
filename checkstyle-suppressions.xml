@@ -6,9 +6,6 @@
     <!-- Project does not use Spring-style Apache license headers -->
     <suppress checks="SpringHeader" files=".*\.java"/>
 
-    <!-- Project uses *Test naming convention, not *Tests -->
-    <suppress checks="SpringTestFileName" files=".*\.java"/>
-
     <!-- Project does not require package-info.java files -->
     <suppress checks="JavadocPackage" files=".*\.java"/>
 
@@ -29,6 +26,6 @@
     <suppress checks="SpringJavadoc" files=".*\.java"/>
 
     <!-- Test files are exempt from size limits: test methods are short but files accumulate many of them -->
-    <suppress checks="MethodLength" files=".*Test\.java"/>
-    <suppress checks="FileLength" files=".*Test\.java"/>
+    <suppress checks="MethodLength" files=".*(Tests|IT)\.java"/>
+    <suppress checks="FileLength" files=".*(Tests|IT)\.java"/>
 </suppressions>
