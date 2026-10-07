@@ -26,9 +26,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * An in-memory stand-in for the handful of Redis commands {@link ReactiveRedisEventStore} uses
- * (ZADD / ZRANGE / SADD / SMEMBERS / SREM / EXPIRE / EXISTS), so the store's logic can be tested
- * without a Redis. Flip {@link #down} to make every command fail like an unreachable server.
+ * An in-memory stand-in for the handful of Redis commands {@link ReactiveRedisEventStore}
+ * uses (ZADD / ZRANGE / SADD / SMEMBERS / SREM / EXPIRE / EXISTS), so the store's logic
+ * can be tested without a Redis. Flip {@link #down} to make every command fail like an
+ * unreachable server.
  */
 @SuppressWarnings("unchecked")
 final class FakeRedis {
