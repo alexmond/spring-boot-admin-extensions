@@ -19,8 +19,7 @@ class EventStorePersistenceHealthIndicatorTests {
 
 	private final ReactiveRedisEventStore store = new ReactiveRedisEventStore(this.redis.template, "sba:test");
 
-	private final EventStorePersistenceHealthIndicator indicator = new EventStorePersistenceHealthIndicator(
-			this.store);
+	private final EventStorePersistenceHealthIndicator indicator = new EventStorePersistenceHealthIndicator(this.store);
 
 	@Test
 	void reportsUpWhileRedisIsReachable() {
@@ -42,7 +41,8 @@ class EventStorePersistenceHealthIndicatorTests {
 		this.redis.down = true;
 
 		Health health = this.indicator.health().block();
-		// DEGRADED, never DOWN: the registry is still served from memory, so the pod must not be
+		// DEGRADED, never DOWN: the registry is still served from memory, so the pod must
+		// not be
 		// restarted or taken out of rotation because Redis is away.
 		assertThat(health.getStatus().getCode()).isEqualTo("DEGRADED");
 		assertThat(health.getStatus()).isNotEqualTo(Status.DOWN);

@@ -17,9 +17,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit tests for {@link ReactiveRedisEventStore} against {@link FakeRedis}: they need no Redis and
- * pin the module's central promise — a Redis outage never blanks the registry and never fails a
- * write. {@code ReactiveRedisEventStoreIT} repeats the happy path against a real Redis.
+ * Unit tests for {@link ReactiveRedisEventStore} against {@link FakeRedis}: they need no
+ * Redis and pin the module's central promise — a Redis outage never blanks the registry
+ * and never fails a write. {@code ReactiveRedisEventStoreIT} repeats the happy path
+ * against a real Redis.
  */
 class ReactiveRedisEventStoreTests {
 
@@ -109,8 +110,8 @@ class ReactiveRedisEventStoreTests {
 
 	@Test
 	void refreshesTheTtlOnEveryWrite() {
-		ReactiveRedisEventStore store = new ReactiveRedisEventStore(this.redis.template, PREFIX,
-				Duration.ofSeconds(3), Duration.ofMinutes(30), false);
+		ReactiveRedisEventStore store = new ReactiveRedisEventStore(this.redis.template, PREFIX, Duration.ofSeconds(3),
+				Duration.ofMinutes(30), false);
 		store.append(List.of(status("t1", 0, "UP"))).block();
 		assertThat(this.redis.ttls).containsEntry(PREFIX + ":events:t1", Duration.ofMinutes(30));
 	}
