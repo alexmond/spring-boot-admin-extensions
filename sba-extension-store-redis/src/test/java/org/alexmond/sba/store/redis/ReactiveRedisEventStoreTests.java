@@ -2,12 +2,16 @@ package org.alexmond.sba.store.redis;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.LongStream;
 
 import org.junit.jupiter.api.Test;
 
 import de.codecentric.boot.admin.server.domain.events.InstanceEvent;
+import de.codecentric.boot.admin.server.domain.events.InstanceInfoChangedEvent;
 import de.codecentric.boot.admin.server.domain.events.InstanceRegisteredEvent;
 import de.codecentric.boot.admin.server.domain.events.InstanceStatusChangedEvent;
+import de.codecentric.boot.admin.server.domain.values.Info;
 import de.codecentric.boot.admin.server.domain.values.InstanceId;
 import de.codecentric.boot.admin.server.domain.values.Registration;
 import de.codecentric.boot.admin.server.domain.values.StatusInfo;
@@ -187,6 +191,115 @@ class ReactiveRedisEventStoreTests {
 				Duration.ofMillis(50), Duration.ofHours(24), false);
 		assertThat(store.ping().block(Duration.ofSeconds(5))).isFalse();
 		assertThat(store.persistenceStatus().lastError()).containsIgnoringCase("timeout");
+	}
+
+	// --- retention (#24): Redis mirrors SBA's compacted in-memory log, never "the newest N" ---
+
+	private ReactiveRedisEventStore store(int maxLogSize, boolean pruneInfoUpdated) {
+		return new ReactiveRedisEventStore(this.redis.template, PREFIX, Duration.ofSeconds(3), Duration.ofHours(24),
+				false, maxLogSize, pruneInfoUpdated);
+	}
+
+	private static InstanceEvent info(String id, long version) {
+		return new InstanceInfoChangedEvent(InstanceId.of(id), version, Info.from(Map.of("seq", version)));
+	}
+
+	/** Registers {@code id} at version 0, then flips its status {@code changes} times. */
+	private static void churn(ReactiveRedisEventStore store, String id, String source, int changes) {
+		store.append(List.of(registered(id, source))).block();
+		LongStream.rangeClosed(1, changes)
+			.forEach((v) -> store.append(List.of(status(id, v, (v % 2 == 0) ? "UP" : "DOWN"))).block());
+	}
+
+	private List<Long> redisVersions(String id) {
+		return this.redis.zsets.get(PREFIX + ":events:" + id).keySet().stream().map(Double::longValue).toList();
+	}
+
+	private static List<Long> memoryVersions(ReactiveRedisEventStore store, String id) {
+		return store.find(InstanceId.of(id)).map(InstanceEvent::getVersion).collectList().block();
+	}
+
+	@Test
+	void compactionKeepsRedisBoundedAndInStepWithMemory() {
+		ReactiveRedisEventStore store = store(10, false);
+		churn(store, "c1", "http-api", 500);
+
+		List<Long> kept = memoryVersions(store, "c1");
+		assertThat(kept).hasSizeLessThanOrEqualTo(10);
+		assertThat(redisVersions("c1")).isEqualTo(kept);
+		// The registration is the oldest event; trimming to "the newest N" would have dropped it.
+		assertThat(kept).contains(0L);
+	}
+
+	@Test
+	void plainAppendsDoNotRewriteTheKey() {
+		ReactiveRedisEventStore store = store(100, false);
+		churn(store, "p1", "http-api", 20);
+		assertThat(this.redis.replaces).hasValue(1); // only the first write of the process
+		assertThat(redisVersions("p1")).hasSize(21);
+	}
+
+	@Test
+	void aCompactedLogStillHydratesAsARegisteredInstance() {
+		churn(store(10, false), "h1", "http-api", 500);
+		churn(store(10, false), "d1", "discovery", 500);
+
+		ReactiveRedisEventStore restarted = store(10, false);
+		// d1 is still recognised as discovery-sourced, because its registration survived compaction.
+		assertThat(restarted.hydrate().block()).isEqualTo(1);
+		List<InstanceEvent> events = restarted.find(InstanceId.of("h1")).collectList().block();
+		assertThat(events.get(0)).isInstanceOf(InstanceRegisteredEvent.class);
+		assertThat(events.get(events.size() - 1).getVersion()).isEqualTo(500L);
+		assertThat(restarted.find(InstanceId.of("d1")).collectList().block()).isEmpty();
+	}
+
+	@Test
+	void hydrationShrinksAnOversizedKeyWrittenBeforeTrimming() {
+		churn(store(10_000, false), "big", "http-api", 300); // as written by the old, untrimmed mirror
+		assertThat(redisVersions("big")).hasSize(301);
+
+		ReactiveRedisEventStore restarted = store(100, false);
+		assertThat(restarted.hydrate().block()).isEqualTo(1);
+		assertThat(redisVersions("big")).isEqualTo(memoryVersions(restarted, "big")).hasSizeLessThan(100);
+	}
+
+	@Test
+	void theFirstWriteOfAProcessReplacesALeftoverLog() {
+		// A log from an earlier registration of the same id (e.g. hydration skipped it as discovery-
+		// sourced, and discovery re-registered the instance from version 0).
+		churn(store(), "r1", "discovery", 50);
+
+		ReactiveRedisEventStore restarted = store();
+		restarted.append(List.of(registered("r1", "discovery"))).block();
+		assertThat(redisVersions("r1")).containsExactly(0L);
+	}
+
+	@Test
+	void theWriteAfterAFailedOneRepairsTheGap() {
+		ReactiveRedisEventStore store = store();
+		store.append(List.of(registered("g1", "http-api"))).block();
+		this.redis.down = true;
+		store.append(List.of(status("g1", 1, "UP"))).block(); // lost
+		this.redis.down = false;
+		store.append(List.of(status("g1", 2, "DOWN"))).block();
+
+		assertThat(redisVersions("g1")).containsExactly(0L, 1L, 2L);
+	}
+
+	@Test
+	void honoursSbasPruneInfoUpdatedEvents() {
+		ReactiveRedisEventStore store = store(100, true);
+		store.append(List.of(registered("i1", "http-api"))).block();
+		LongStream.rangeClosed(1, 5).forEach((v) -> store.append(List.of(info("i1", v))).block());
+
+		assertThat(memoryVersions(store, "i1")).containsExactly(0L, 5L);
+		assertThat(redisVersions("i1")).containsExactly(0L, 5L);
+	}
+
+	@Test
+	void rejectsANonPositiveLogSize() {
+		assertThatThrownBy(() -> store(0, false)).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("maxLogSizePerInstance");
 	}
 
 }

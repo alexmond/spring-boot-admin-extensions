@@ -17,6 +17,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *     that stops being written (e.g. one that re-registered under a new id — a k8s pod restarting
  *     under a new IP, an autoscaled/replaced node) self-evicts after this, so the mirror doesn't grow
  *     ghosts. Zero/negative disables expiry (keys live forever — not recommended for churny fleets).
+ *     This is <em>not</em> a retention limit: a live instance's key is refreshed on every write and
+ *     never expires; {@code maxLogSizePerInstance} bounds how much is kept for it.
  * @param hydrateOnStartup replay the persisted log into memory on startup; disable to always start
  *     from an empty registry
  * @param hydrateDiscovered whether startup hydration restores <em>discovery-sourced</em> instances
@@ -25,9 +27,15 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *     skip them, because discovery re-registers the currently-live ones and prunes the rest, so
  *     replaying them would only resurrect dead instances as ghosts until the next discovery scan.
  *     Instances discovery will NOT restore (client self-registrations) are always hydrated regardless.
+ * @param maxLogSizePerInstance compaction threshold for each instance's event log, applied to memory
+ *     and Redis alike (SBA's own default is 100). Once an instance's log grows past this, SBA keeps
+ *     only the newest event of each type (and of each status), and the Redis key is rewritten to
+ *     match. Must be positive. To also keep only the newest INFO_UPDATED event on every write, set
+ *     SBA's {@code spring.boot.admin.event-store.prune-info-updated-events=true}; this store honours it.
  */
 @ConfigurationProperties(prefix = "sba.eventstore.redis")
 public record RedisEventStoreProperties(@DefaultValue("sba:eventstore") String keyPrefix,
 		@DefaultValue("3s") Duration timeout, @DefaultValue("24h") Duration eventTtl,
-		@DefaultValue("true") boolean hydrateOnStartup, @DefaultValue("false") boolean hydrateDiscovered) {
+		@DefaultValue("true") boolean hydrateOnStartup, @DefaultValue("false") boolean hydrateDiscovered,
+		@DefaultValue("100") int maxLogSizePerInstance) {
 }

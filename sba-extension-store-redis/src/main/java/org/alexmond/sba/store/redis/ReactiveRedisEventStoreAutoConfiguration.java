@@ -3,6 +3,7 @@ package org.alexmond.sba.store.redis;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.health.contributor.ReactiveHealthIndicator;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -17,6 +18,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 
 import de.codecentric.boot.admin.server.config.AdminServerAutoConfiguration;
+import de.codecentric.boot.admin.server.config.AdminServerProperties;
 import de.codecentric.boot.admin.server.eventstore.InstanceEventStore;
 
 /**
@@ -43,9 +45,12 @@ public class ReactiveRedisEventStoreAutoConfiguration {
 	@ConditionalOnBean(ReactiveStringRedisTemplate.class)
 	@ConditionalOnMissingBean(InstanceEventStore.class)
 	public ReactiveRedisEventStore instanceEventStore(ReactiveStringRedisTemplate redis,
-			RedisEventStoreProperties props) {
+			RedisEventStoreProperties props, ObjectProvider<AdminServerProperties> adminServerProperties) {
+		// Honour SBA's own event-store setting, which its default in-memory store would have applied.
+		AdminServerProperties admin = adminServerProperties.getIfAvailable();
+		boolean pruneInfoUpdatedEvents = admin != null && admin.getEventStore().isPruneInfoUpdatedEvents();
 		return new ReactiveRedisEventStore(redis, props.keyPrefix(), props.timeout(), props.eventTtl(),
-				props.hydrateDiscovered());
+				props.hydrateDiscovered(), props.maxLogSizePerInstance(), pruneInfoUpdatedEvents);
 	}
 
 	/**

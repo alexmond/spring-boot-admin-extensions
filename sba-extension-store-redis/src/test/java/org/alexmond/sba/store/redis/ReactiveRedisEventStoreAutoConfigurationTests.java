@@ -1,6 +1,8 @@
 package org.alexmond.sba.store.redis;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -12,6 +14,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 
+import de.codecentric.boot.admin.server.config.AdminServerProperties;
+import de.codecentric.boot.admin.server.domain.events.InstanceInfoChangedEvent;
+import de.codecentric.boot.admin.server.domain.values.Info;
+import de.codecentric.boot.admin.server.domain.values.InstanceId;
 import de.codecentric.boot.admin.server.eventstore.InMemoryEventStore;
 import de.codecentric.boot.admin.server.eventstore.InstanceEventStore;
 
@@ -44,6 +50,7 @@ class ReactiveRedisEventStoreAutoConfigurationTests {
 			assertThat(props.eventTtl()).isEqualTo(Duration.ofHours(24));
 			assertThat(props.hydrateOnStartup()).isTrue();
 			assertThat(props.hydrateDiscovered()).isFalse();
+			assertThat(props.maxLogSizePerInstance()).isEqualTo(100);
 		});
 	}
 
@@ -52,13 +59,33 @@ class ReactiveRedisEventStoreAutoConfigurationTests {
 		this.runner
 			.withPropertyValues("sba.eventstore.type=redis", "sba.eventstore.redis.key-prefix=custom",
 					"sba.eventstore.redis.timeout=1s", "sba.eventstore.redis.event-ttl=0",
-					"sba.eventstore.redis.hydrate-discovered=true")
+					"sba.eventstore.redis.hydrate-discovered=true", "sba.eventstore.redis.max-log-size-per-instance=20")
 			.run((context) -> {
 				RedisEventStoreProperties props = context.getBean(RedisEventStoreProperties.class);
 				assertThat(props.keyPrefix()).isEqualTo("custom");
 				assertThat(props.timeout()).isEqualTo(Duration.ofSeconds(1));
 				assertThat(props.eventTtl()).isEqualTo(Duration.ZERO);
 				assertThat(props.hydrateDiscovered()).isTrue();
+				assertThat(props.maxLogSizePerInstance()).isEqualTo(20);
+			});
+	}
+
+	@Test
+	void honoursSbasPruneInfoUpdatedEventsSetting() {
+		FakeRedis redis = new FakeRedis();
+		AdminServerProperties admin = new AdminServerProperties();
+		admin.getEventStore().setPruneInfoUpdatedEvents(true);
+		new ApplicationContextRunner()
+			.withConfiguration(AutoConfigurations.of(ReactiveRedisEventStoreAutoConfiguration.class))
+			.withBean(ReactiveStringRedisTemplate.class, () -> redis.template)
+			.withBean(AdminServerProperties.class, () -> admin)
+			.withPropertyValues("sba.eventstore.type=redis")
+			.run((context) -> {
+				ReactiveRedisEventStore store = context.getBean(ReactiveRedisEventStore.class);
+				InstanceId id = InstanceId.of("i1");
+				store.append(List.of(new InstanceInfoChangedEvent(id, 0, Info.from(Map.of("a", 1))))).block();
+				store.append(List.of(new InstanceInfoChangedEvent(id, 1, Info.from(Map.of("a", 2))))).block();
+				assertThat(store.find(id).collectList().block()).hasSize(1);
 			});
 	}
 

@@ -89,6 +89,8 @@ sba:
       hydrate-on-startup: true   # replay the persisted log into memory on startup
       hydrate-discovered: false  # skip discovery-sourced instances on hydrate (a DiscoveryClient
                                  #   restores the live ones itself); true = restore everything
+      max-log-size-per-instance: 100 # compact an instance's log past this (memory + Redis); the TTL
+                                 #   above is NOT a retention limit
 ```
 
 With `sba.eventstore.type` unset (or any other value) SBA keeps its default in-memory store, so the

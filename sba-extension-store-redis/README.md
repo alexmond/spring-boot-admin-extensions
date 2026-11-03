@@ -45,9 +45,24 @@ All are optional. Prefix: `sba.eventstore.redis`.
 |---|---|---|
 | `key-prefix` | `sba:eventstore` | Redis key namespace: `<prefix>:events:<instanceId>` and `<prefix>:instances`. |
 | `timeout` | `3s` | Timeout for each Redis command (mirror, hydrate, ping). |
-| `event-ttl` | `24h` | Time-to-live of an instance's key, refreshed on every write, so instances that stop reporting drop out. `0` or negative means never expire. |
+| `event-ttl` | `24h` | Time-to-live of an instance's key, refreshed on every write, so instances that stop reporting drop out. `0` or negative means never expire. Not a retention limit — see below. |
 | `hydrate-on-startup` | `true` | Replay the mirrored log into memory when the admin starts. |
 | `hydrate-discovered` | `false` | Also replay instances that came from a `DiscoveryClient`. Off by default: discovery re-registers the live ones itself, so replaying them only brings back dead instances. |
+| `max-log-size-per-instance` | `100` | Compact an instance's log once it has more events than this, in memory and in Redis. Same default as Spring Boot Admin. |
+
+## How much is kept
+
+Redis holds the same log as memory, and Spring Boot Admin keeps that log small by **compacting**
+it. Once an instance has more than `max-log-size-per-instance` events, only the newest event of
+each type (and the newest of each status: UP, DOWN, …) is kept. The registration is always kept,
+because rebuilding an instance needs it. The Redis key is rewritten to match whenever the log is
+compacted.
+
+- `event-ttl` is **not** a retention limit. It only removes instances that stopped being written.
+- To also keep only the newest `INFO_UPDATED` event on every write, set Spring Boot Admin's own
+  `spring.boot.admin.event-store.prune-info-updated-events=true`. This store honours it.
+- Keys written by earlier versions shrink on their own: at the next startup (hydration) or the
+  instance's next write.
 
 ## Health
 

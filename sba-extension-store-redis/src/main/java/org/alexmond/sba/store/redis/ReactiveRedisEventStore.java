@@ -8,17 +8,18 @@ import java.io.ObjectOutputStream;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
-import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -54,10 +55,20 @@ import static java.util.Comparator.comparingLong;
  *
  * <p>Storage: one sorted set per instance, {@code <prefix>:events:<instanceId>}, scored by event
  * version, member = Base64 of the JDK-serialized {@link InstanceEvent}; plus a set
- * {@code <prefix>:instances} of known instance ids. The optimistic lock lives in the in-memory
- * store now, so the mirror is a plain idempotent {@code ZADD} (no Lua needed). Each event key carries
- * a refreshed TTL (see {@code eventTtl}) so an instance that stops being written self-evicts — the
- * mirror doesn't accumulate stale ids across restarts/re-registrations.
+ * {@code <prefix>:instances} of known instance ids. Each event key carries a refreshed TTL (see
+ * {@code eventTtl}) so an instance that stops being written self-evicts — the mirror doesn't
+ * accumulate stale ids across restarts/re-registrations. The TTL is <em>not</em> a retention limit.
+ *
+ * <p><b>Retention.</b> Redis mirrors the in-memory log, which SBA bounds by <em>compaction</em>: once
+ * an instance's log exceeds {@code maxLogSizePerInstance}, only the newest event of each type (and of
+ * each status) is kept, and {@code pruneInfoUpdatedEvents} keeps only the newest INFO_UPDATED. This is
+ * deliberately not "keep the newest N" — replay needs the instance's {@code InstanceRegisteredEvent},
+ * which is the oldest event. Each mirror write is one atomic script on the instance's key: normally an
+ * idempotent {@code ZADD} of the new events, but a full <em>replace</em> with the in-memory log when
+ * that log shrank (compaction/prune), on the first write for an instance in this process, and on the
+ * write after a failed one. Replacing also repairs any gap Redis picked up (an outage, a restart from
+ * an older snapshot, a log left over from an earlier registration). The script touches one key only,
+ * so it is safe on Redis Cluster.
  *
  * <p><strong>Security:</strong> events are JDK-serialized (like SBA's {@code HazelcastEventStore}).
  * JDK deserialization of untrusted bytes is an RCE vector, so the Redis MUST be trusted:
@@ -71,6 +82,26 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 	/** SBA's registration source for instances found via a DiscoveryClient (InstanceDiscoveryListener). */
 	private static final String DISCOVERY_SOURCE = "discovery";
 
+	/** SBA's own default ({@code InMemoryEventStore()}). */
+	static final int DEFAULT_MAX_LOG_SIZE_PER_INSTANCE = 100;
+
+	static final String MODE_APPEND = "append";
+
+	static final String MODE_REPLACE = "replace";
+
+	/**
+	 * Writes one instance's events. KEYS[1] = event key; ARGV[1] = mode ({@code append} | {@code replace}),
+	 * ARGV[2] = TTL in ms (&lt;= 0: none), then score/member pairs. {@code replace} drops the key first so
+	 * it ends up holding exactly the given events.
+	 */
+	static final RedisScript<Long> WRITE_SCRIPT = RedisScript.of("""
+			if ARGV[1] == 'replace' then redis.call('DEL', KEYS[1]) end
+			for i = 3, #ARGV, 2 do redis.call('ZADD', KEYS[1], ARGV[i], ARGV[i + 1]) end
+			local ttl = tonumber(ARGV[2])
+			if ttl > 0 then redis.call('PEXPIRE', KEYS[1], ttl) end
+			return redis.call('ZCARD', KEYS[1])
+			""", Long.class);
+
 	private final ReactiveStringRedisTemplate redis;
 
 	private final String instancesKey;
@@ -82,6 +113,12 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 	private final Duration eventTtl;
 
 	private final boolean hydrateDiscovered;
+
+	/**
+	 * Instances whose Redis key this process has already brought in line with memory. An instance not
+	 * in here gets a full replace on its next write; a failed write removes it again.
+	 */
+	private final Set<InstanceId> synced = ConcurrentHashMap.newKeySet();
 
 	// --- persistence status (read by the health indicator) ---
 	private volatile boolean redisReachable;
@@ -102,7 +139,18 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 
 	public ReactiveRedisEventStore(ReactiveStringRedisTemplate redis, String keyPrefix, Duration timeout,
 			Duration eventTtl, boolean hydrateDiscovered) {
-		super();
+		this(redis, keyPrefix, timeout, eventTtl, hydrateDiscovered, DEFAULT_MAX_LOG_SIZE_PER_INSTANCE, false);
+	}
+
+	/**
+	 * @param maxLogSizePerInstance compaction threshold for each instance's log, in memory and in Redis
+	 * (SBA's {@code maxLogSizePerAggregate}); must be positive
+	 * @param pruneInfoUpdatedEvents keep only the newest INFO_UPDATED event per instance (SBA's
+	 * {@code spring.boot.admin.event-store.prune-info-updated-events})
+	 */
+	public ReactiveRedisEventStore(ReactiveStringRedisTemplate redis, String keyPrefix, Duration timeout,
+			Duration eventTtl, boolean hydrateDiscovered, int maxLogSizePerInstance, boolean pruneInfoUpdatedEvents) {
+		super(requirePositive(maxLogSizePerInstance), pruneInfoUpdatedEvents);
 		this.redis = redis;
 		this.instancesKey = keyPrefix + ":instances";
 		this.eventKeyPrefix = keyPrefix + ":events:";
@@ -111,20 +159,37 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 		this.hydrateDiscovered = hydrateDiscovered;
 	}
 
+	private static int requirePositive(int maxLogSizePerInstance) {
+		if (maxLogSizePerInstance <= 0) {
+			throw new IllegalArgumentException("maxLogSizePerInstance must be positive, was " + maxLogSizePerInstance);
+		}
+		return maxLogSizePerInstance;
+	}
+
 	@Override
 	public Mono<Void> append(List<InstanceEvent> events) {
-		// In-memory is authoritative: commit (optimistic-locked) + publish first, then mirror.
-		return super.append(events).doOnSuccess((v) -> mirror(events));
+		if (events == null || events.isEmpty()) {
+			return super.append(events);
+		}
+		InstanceId id = events.get(0).getInstance();
+		// In-memory is authoritative: commit (optimistic-locked) + publish first, then mirror. Reading
+		// the log size around the append (all in memory, non-blocking) tells us whether SBA compacted.
+		return find(id).count()
+			.flatMap((before) -> super.append(events)
+				.then(find(id).collectList())
+				.doOnNext((after) -> mirror(id, events, after, after.size() < before + events.size())))
+			.then();
 	}
 
 	/** Fire-and-forget, non-blocking write-behind to Redis. Never fails the append. */
-	private void mirror(List<InstanceEvent> events) {
-		if (events == null || events.isEmpty()) {
-			return;
-		}
-		redisWrite(events)
+	private void mirror(InstanceId id, List<InstanceEvent> appended, List<InstanceEvent> snapshot,
+			boolean shrank) {
+		// Replace when memory dropped events, or when this process hasn't synced the key yet.
+		boolean replace = this.synced.add(id) || shrank;
+		redisWrite(id, replace ? snapshot : appended, replace)
 			.doOnSuccess((v) -> markReachable(true, null, this.mirrorSuccesses))
 			.onErrorResume((ex) -> {
+				this.synced.remove(id); // the key may now have a gap: replace it on the next write
 				markReachable(false, ex, this.mirrorFailures);
 				log.warn("Redis mirror failed (registry unaffected; served from memory): {}", ex.toString());
 				return Mono.empty();
@@ -132,18 +197,18 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 			.subscribe();
 	}
 
-	private Mono<Void> redisWrite(List<InstanceEvent> events) {
-		InstanceId id = events.get(0).getInstance();
-		String eventKey = this.eventKeyPrefix + id.getValue();
-		Set<ZSetOperations.TypedTuple<String>> tuples = events.stream()
-			.map((e) -> ZSetOperations.TypedTuple.of(serialize(e), (double) e.getVersion()))
-			.collect(Collectors.toSet());
-		// ZADD, then (re)set the TTL so a live instance's key stays fresh while a dead one (no more
-		// writes — e.g. an instance re-registered under a new id) self-evicts. SADD tracks known ids.
-		Mono<Boolean> refreshTtl = ttlEnabled() ? this.redis.expire(eventKey, this.eventTtl) : Mono.just(true);
-		return this.redis.opsForZSet()
-			.addAll(eventKey, tuples)
-			.then(refreshTtl)
+	private Mono<Void> redisWrite(InstanceId id, List<InstanceEvent> events, boolean replace) {
+		List<String> args = new ArrayList<>(2 + 2 * events.size());
+		args.add(replace ? MODE_REPLACE : MODE_APPEND);
+		args.add(Long.toString(ttlEnabled() ? this.eventTtl.toMillis() : 0L));
+		for (InstanceEvent event : events) {
+			args.add(Long.toString(event.getVersion()));
+			args.add(serialize(event));
+		}
+		// One atomic script on the instance's key (ZADD or replace, then refresh the TTL so a live
+		// instance's key stays fresh while a dead one self-evicts); SADD tracks known ids. The SADD is a
+		// separate command so the script only touches one key (Redis Cluster safe).
+		return this.redis.execute(WRITE_SCRIPT, List.of(this.eventKeyPrefix + id.getValue()), args)
 			.then(this.redis.opsForSet().add(this.instancesKey, id.getValue()))
 			.timeout(this.timeout)
 			.then();
@@ -174,7 +239,16 @@ public class ReactiveRedisEventStore extends InMemoryEventStore {
 				if (!this.hydrateDiscovered && isDiscoverySourced(ordered)) {
 					return Mono.just(0);
 				}
+				InstanceId id = ordered.get(0).getInstance();
 				return super.append(ordered)
+					.then(find(id).collectList())
+					.doOnNext((kept) -> {
+						// SBA compacted the replayed log (e.g. a key written before Redis was trimmed):
+						// shrink the key to match, now, rather than waiting for the instance's next write.
+						if (kept.size() < ordered.size()) {
+							mirror(id, kept, kept, true);
+						}
+					})
 					.thenReturn(1)
 					.onErrorResume(OptimisticLockingException.class, (ex) -> Mono.just(0));
 			})

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
+import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.RedisPassword;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -192,6 +193,38 @@ class ReactiveRedisEventStoreIT {
 			.extracting(InstanceEvent::getVersion).containsExactly(0L, 1L);
 		assertThat(restarted.findAll().collectList().block())
 			.extracting((event) -> event.getInstance().getValue()).contains("h1", "h2");
+	}
+
+	@Test
+	void compaction_keeps_the_real_key_bounded_and_hydratable() throws InterruptedException {
+		// Runs the real Lua write script: Redis must end up holding exactly SBA's compacted log,
+		// registration included, and a restart must rebuild a registered instance from it.
+		String prefix = PREFIX + ":cmp";
+		ReactiveRedisEventStore writer = new ReactiveRedisEventStore(redis, prefix, Duration.ofSeconds(3),
+				Duration.ofMinutes(30), false, 10, false);
+		InstanceId id = InstanceId.of("c1");
+		writer.append(List.of(new InstanceRegisteredEvent(id, 0,
+				Registration.create("app-c1", "http://app-c1/health").source("http-api").build()))).block();
+		for (long v = 1; v <= 200; v++) {
+			writer.append(List.of(status("c1", v, (v % 2 == 0) ? "UP" : "DOWN"))).block();
+		}
+		awaitMirror(writer, 201);
+
+		List<Long> inMemory = writer.find(id).map(InstanceEvent::getVersion).collectList().block();
+		List<Long> inRedis = redis.opsForZSet()
+			.rangeWithScores(prefix + ":events:c1", Range.closed(0L, -1L))
+			.map((t) -> t.getScore().longValue())
+			.collectList()
+			.block();
+		assertThat(inMemory).hasSizeLessThanOrEqualTo(10).contains(0L, 200L);
+		assertThat(inRedis).isEqualTo(inMemory);
+		assertThat(redis.getExpire(prefix + ":events:c1").block()).isBetween(Duration.ofMinutes(25),
+				Duration.ofMinutes(30));
+
+		ReactiveRedisEventStore restarted = new ReactiveRedisEventStore(redis, prefix, Duration.ofSeconds(3),
+				Duration.ofMinutes(30), false, 10, false);
+		assertThat(restarted.hydrate().block()).isEqualTo(1);
+		assertThat(restarted.find(id).blockFirst()).isInstanceOf(InstanceRegisteredEvent.class);
 	}
 
 }

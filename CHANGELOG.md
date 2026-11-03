@@ -2,6 +2,13 @@
 
 Each Spring Boot line has its own entries. Versions are `<boot-version>.<revision>`.
 
+## Unreleased
+
+- Redis store: the mirror no longer grows without bound (#24). Redis now holds the same compacted
+  log as memory, so the instance registration is always kept. New `max-log-size-per-instance`
+  (default 100). SBA's `prune-info-updated-events` is now honoured. A key with gaps (after an outage
+  or a Redis restart) is rewritten from memory. Each write is one round trip plus `SADD`.
+
 ## 4.1.1.1 (2026-10-06)
 
 First release to Maven Central, on Spring Boot 4.1.1 / Spring Boot Admin 4.1.3.
