@@ -2,7 +2,7 @@
 
 Each Spring Boot line has its own entries. Versions are `<boot-version>.<revision>`.
 
-## 4.1.3.1 (unreleased)
+## 4.1.3.1 (2026-11-25)
 
 - Spring Boot 4.1.3 (Spring Boot Admin stays 4.1.3).
 - Build: Checkstyle 10.12.4 and spring-javaformat 0.0.48, the versions Spring Boot's own build uses.
