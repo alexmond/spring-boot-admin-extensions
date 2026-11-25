@@ -13,7 +13,7 @@ the top navigation.
 <dependency>
     <groupId>org.alexmond</groupId>
     <artifactId>sba-extension-environments</artifactId>
-    <version>4.0.8.1</version>
+    <version>4.0.10.1</version>
 </dependency>
 ```
 
