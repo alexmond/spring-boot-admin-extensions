@@ -17,7 +17,7 @@ Add it to your Spring Boot Admin **server**, then opt in:
 <dependency>
     <groupId>org.alexmond</groupId>
     <artifactId>sba-extension-store-redis</artifactId>
-    <version>4.0.8.1</version>
+    <version>4.0.10.1</version>
 </dependency>
 ```
 
