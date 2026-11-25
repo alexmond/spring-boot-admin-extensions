@@ -39,7 +39,7 @@ The two UI modules have no Java and skip all three plugins (`*.skip` properties 
 
 ## Versioning & branches
 
-Follows the machine-wide **Spring Boot extension** rule (see global CLAUDE.md): the project version tracks the Boot version it builds against (currently `4.1.1.1-SNAPSHOT` against Boot `4.1.1` / SBA `4.1.3` — i.e. `<boot-version>.<n>`). `master`/`main` tracks the latest Boot minor; older Boot lines get their own named branches. This is the one project where the numeric-only release rule does **not** apply — match the Boot-aligned scheme.
+Follows the machine-wide **Spring Boot extension** rule (see global CLAUDE.md): the project version tracks the Boot version it builds against (currently `4.1.1.1-SNAPSHOT` against Boot `4.1.3` / SBA `4.1.3` — i.e. `<boot-version>.<n>`). `master`/`main` tracks the latest Boot minor; older Boot lines get their own named branches. This is the one project where the numeric-only release rule does **not** apply — match the Boot-aligned scheme.
 
 ## Releasing
 
