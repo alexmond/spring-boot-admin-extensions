@@ -31,8 +31,8 @@ Pick the line that matches your Spring Boot Admin server.
 
 | Extensions | Spring Boot | Spring Boot Admin | Branch |
 |---|---|---|---|
-| `4.1.1.x` | 4.1.x | 4.1.3 | `main` |
-| `4.0.8.x` | 4.0.x | 4.0.4 | `4.0` |
+| `4.1.3.x` | 4.1.x | 4.1.3 | `main` |
+| `4.0.10.x` | 4.0.x | 4.0.4 | `4.0` |
 
 Spring Boot Admin `4.0.x` has no release that fixes
 [GHSA-4jg4-pqcq-xf3x](https://github.com/codecentric/spring-boot-admin/security/advisories/GHSA-4jg4-pqcq-xf3x)
@@ -46,17 +46,17 @@ Add the module(s) to your Spring Boot Admin **server** application:
 <dependency>
     <groupId>org.alexmond</groupId>
     <artifactId>sba-extension-environments</artifactId>
-    <version>4.1.1.1</version>
+    <version>4.1.3.1</version>
 </dependency>
 <dependency>
     <groupId>org.alexmond</groupId>
     <artifactId>sba-extension-live-metrics</artifactId>
-    <version>4.1.1.1</version>
+    <version>4.1.3.1</version>
 </dependency>
 <dependency>
     <groupId>org.alexmond</groupId>
     <artifactId>sba-extension-store-redis</artifactId>
-    <version>4.1.1.1</version>
+    <version>4.1.3.1</version>
 </dependency>
 ```
 

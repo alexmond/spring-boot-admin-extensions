@@ -12,7 +12,7 @@ Add it to your Spring Boot Admin **server**. There is nothing to configure.
 <dependency>
     <groupId>org.alexmond</groupId>
     <artifactId>sba-extension-live-metrics</artifactId>
-    <version>4.1.1.1</version>
+    <version>4.1.3.1</version>
 </dependency>
 ```
 

@@ -27,8 +27,8 @@ Pick the line that matches your Spring Boot Admin server.
 |===
 | Extensions | Spring Boot | Spring Boot Admin
 
-| 4.1.1.x | 4.1.x | 4.1.3
-| 4.0.8.x | 4.0.x | 4.0.4
+| 4.1.3.x | 4.1.x | 4.1.3
+| 4.0.10.x | 4.0.x | 4.0.4
 |===
 
 == Install
